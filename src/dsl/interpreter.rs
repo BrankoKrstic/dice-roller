@@ -1,0 +1,290 @@
+use rand::{rngs::ThreadRng, RngExt};
+use thiserror::Error;
+
+use crate::dsl::parser::{
+    Ast, BinaryOp, Condition, Dice, DiceKind, DiceModifier, ModifierOp, SortOrder, UnaryOp,
+};
+
+pub trait DiceRng {
+    fn roll_inclusive(&mut self, start: i64, end: i64) -> i64;
+}
+
+pub struct CryptoDiceRng {
+    rng: ThreadRng,
+}
+
+impl DiceRng for CryptoDiceRng {
+    fn roll_inclusive(&mut self, start: i64, end: i64) -> i64 {
+        self.rng.random_range(start..end)
+    }
+}
+
+pub struct Interpreter<R> {
+    rng: R,
+}
+
+pub struct DiceRoll {
+    dropped: bool,
+    result: i64,
+}
+
+pub enum EvalResult {
+    Number {
+        value: i64,
+    },
+    DiceRollGroup {
+        counted: Option<u64>,
+        value: i64,
+        rolls: Vec<DiceRoll>,
+    },
+    Unary {
+        op: UnaryOp,
+        value: i64,
+        child: Box<EvalResult>,
+    },
+    Binary {
+        op: BinaryOp,
+        value: i64,
+        lhs: Box<EvalResult>,
+        rhs: Box<EvalResult>,
+    },
+}
+
+impl EvalResult {
+    fn get_val(&self) -> i64 {
+        match self {
+            EvalResult::Number { value } => *value,
+            EvalResult::DiceRollGroup { value, .. } => *value,
+            EvalResult::Unary { value, .. } => *value,
+            EvalResult::Binary { value, .. } => *value,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum InterpreterError {}
+
+impl<R: DiceRng> Interpreter<R> {
+    pub fn new(rng: R) -> Self {
+        Self { rng }
+    }
+    pub fn roll_dice(&mut self, dice: DiceKind) -> i64 {
+        match dice {
+            DiceKind::DFudge => self.rng.roll_inclusive(-1, 1),
+            x => self.rng.roll_inclusive(0, x.max_val() as i64),
+        }
+    }
+
+    fn eval_dice_group(&mut self, dice: &Dice) -> Result<EvalResult, InterpreterError> {
+        let mut out = Vec::with_capacity(dice.count as usize);
+
+        for _ in 0..dice.count {
+            out.push(DiceRoll {
+                dropped: false,
+                result: self.roll_dice(dice.kind),
+            });
+        }
+
+        for m in &dice.modifiers {
+            match m {
+                DiceModifier::Unique => {
+                    let mut reroll_count = 0;
+                    for i in 0..out.len() {
+                        if out[0..i].iter().any(|r| r.result == out[i].result) {
+                            out[i].dropped = true;
+                            reroll_count += 1;
+                        }
+                    }
+                    while reroll_count > 0 {
+                        let roll = self.roll_dice(dice.kind);
+                        let unique = out.iter().any(|r| r.result == roll);
+
+                        out.push(DiceRoll {
+                            dropped: !unique,
+                            result: roll,
+                        });
+                        if unique {
+                            reroll_count -= 1;
+                        }
+                    }
+                }
+                DiceModifier::Explode { condition, count } => {
+                    let mut idx = 0;
+                    let target = 0;
+
+                    let mut match_cond = |x| match condition.op {
+                        ModifierOp::Greater => x > target,
+                        ModifierOp::Less => x < target,
+                        ModifierOp::GreaterEqual => x >= target,
+                        ModifierOp::LessEqual => x <= target,
+                        ModifierOp::Equal => x == target,
+                        _ => {
+                            idx += 1;
+                            idx < target
+                        }
+                    };
+
+                    let mut count = out.iter().filter(|r| match_cond(r.result)).count();
+
+                    while count > 0 {
+                        let roll = self.roll_dice(dice.kind);
+                        if !match_cond(roll) {
+                            count -= 1;
+                        }
+                        out.push(DiceRoll {
+                            dropped: false,
+                            result: roll,
+                        })
+                    }
+                }
+                DiceModifier::Reroll { times, condition } => {
+                    for _ in 0..*times {
+                        let indices = find_cond_indices(&out[..], *condition);
+                        if indices.is_empty() {
+                            break;
+                        }
+                        for i in indices {
+                            out[i].dropped = true;
+                            let reroll = self.roll_dice(dice.kind);
+                            out.push(DiceRoll {
+                                dropped: false,
+                                result: reroll,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for m in &dice.modifiers {
+            match m {
+                DiceModifier::Keep { condition } => {
+                    let indices = find_cond_indices(&out[..], *condition);
+                    for i in 0..out.len() {
+                        out[i].dropped = indices.contains(&i);
+                    }
+                }
+                DiceModifier::Drop { condition } => {
+                    let indices = find_cond_indices(&out[..], *condition);
+                    for i in 0..out.len() {
+                        out[i].dropped = !indices.contains(&i);
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        for m in &dice.modifiers {
+            match m {
+                DiceModifier::Sort(sort_order) => {
+                    out.sort_unstable_by_key(|x| {
+                        if matches!(sort_order, SortOrder::Dsc) {
+                            x.result
+                        } else {
+                            -x.result
+                        }
+                    });
+                }
+
+                DiceModifier::Min(min) => {
+                    for roll in &mut out {
+                        roll.result = roll.result.max(*min as i64);
+                    }
+                }
+                DiceModifier::Max(max) => {
+                    for roll in &mut out {
+                        roll.result = roll.result.min(*max as i64);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut counted = None;
+        for m in &dice.modifiers {
+            if let &DiceModifier::Count { condition } = m {
+                if let Some(condition) = condition {
+                    counted = Some(find_cond_indices(&out[..], condition).len() as u64);
+                } else {
+                    counted = Some(out.iter().filter(|x| !x.dropped).count() as u64);
+                }
+            }
+        }
+        Ok(EvalResult::DiceRollGroup {
+            counted,
+            value: out.iter().filter(|r| !r.dropped).map(|r| r.result).sum(),
+            rolls: out,
+        })
+    }
+    pub fn eval_ast(&mut self, ast: &Ast) -> Result<EvalResult, InterpreterError> {
+        let res = match ast {
+            Ast::Number(num) => EvalResult::Number { value: *num as i64 },
+            Ast::Dice(dice) => self.eval_dice_group(dice)?,
+            Ast::Unary { op, ast } => {
+                let inner = self.eval_ast(ast)?;
+                let inner_val = inner.get_val();
+
+                let value = match op {
+                    UnaryOp::Negate => -inner_val,
+                };
+                EvalResult::Unary {
+                    op: *op,
+                    value,
+                    child: inner.into(),
+                }
+            }
+            Ast::Binary { op, lhs, rhs } => {
+                let lhs = self.eval_ast(lhs)?;
+                let rhs = self.eval_ast(rhs)?;
+                let lhs_val = lhs.get_val();
+                let rhs_val = rhs.get_val();
+
+                let value = match op {
+                    BinaryOp::Add => lhs_val + rhs_val,
+                    BinaryOp::Subtract => lhs_val - rhs_val,
+                    BinaryOp::Multiply => lhs_val * rhs_val,
+                    BinaryOp::Divide => lhs_val / rhs_val,
+                };
+                EvalResult::Binary {
+                    op: *op,
+                    value,
+                    lhs: lhs.into(),
+                    rhs: rhs.into(),
+                }
+            }
+        };
+        Ok(res)
+    }
+}
+
+fn find_cond_indices(nums: &[DiceRoll], cond: Condition) -> Vec<usize> {
+    let mut out = nums
+        .iter()
+        .enumerate()
+        .filter(|n| !n.1.dropped)
+        .collect::<Vec<_>>();
+    let target = cond.target as i64;
+    match cond.op {
+        ModifierOp::Lowest => {
+            out.sort_unstable_by_key(|x| x.1.result);
+            out.into_iter().take(target as usize).map(|x| x.0).collect()
+        }
+        ModifierOp::Highest => {
+            out.sort_unstable_by_key(|x| -x.1.result);
+            out.into_iter().take(target as usize).map(|x| x.0).collect()
+        }
+        x => out
+            .into_iter()
+            .filter(|val| match x {
+                ModifierOp::Greater => val.1.result > target,
+                ModifierOp::Less => val.1.result < target,
+                ModifierOp::GreaterEqual => val.1.result >= target,
+                ModifierOp::LessEqual => val.1.result <= target,
+                ModifierOp::Equal => val.1.result == target,
+                _ => unreachable!(),
+            })
+            .map(|x| x.0)
+            .collect(),
+    }
+}

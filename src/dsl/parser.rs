@@ -40,7 +40,7 @@ pub enum DiceKind {
 }
 
 impl DiceKind {
-    fn max_val(&self) -> u32 {
+    pub fn max_val(&self) -> u32 {
         match self {
             DiceKind::D4 => 4,
             DiceKind::D6 => 6,
@@ -64,14 +64,12 @@ pub enum DiceModifier {
     Explode {
         condition: Condition,
         count: Option<u32>,
-        times: Option<u32>,
     },
     Keep {
         condition: Condition,
     },
     Sort(SortOrder),
     Reroll {
-        count: u32,
         times: u32,
         condition: Condition,
     },
@@ -97,17 +95,17 @@ pub enum ModifierOp {
     Highest,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Condition {
-    target: u32,
-    op: ModifierOp,
+    pub(crate) target: u32,
+    pub(crate) op: ModifierOp,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dice {
-    count: u32,
-    kind: DiceKind,
-    modifiers: Vec<DiceModifier>,
+    pub(crate) count: u32,
+    pub(crate) kind: DiceKind,
+    pub(crate) modifiers: Vec<DiceModifier>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnaryOp {
@@ -271,7 +269,6 @@ impl<'input> Parser<'input> {
                     DiceModifier::Explode {
                         count: threshold,
                         condition,
-                        times,
                     }
                 }
                 TokenKind::K => {
@@ -284,21 +281,13 @@ impl<'input> Parser<'input> {
                 }
                 TokenKind::R => {
                     self.lexer.next();
-                    let count = if self.peek_number().is_some() {
-                        self.expect_number()?
-                    } else {
-                        dice.max_val()
-                    };
+
                     let condition = self.parse_condition()?.unwrap_or(Condition {
                         target: 1,
                         op: ModifierOp::Lowest,
                     });
                     let times = self.parse_times()?.unwrap_or(1);
-                    DiceModifier::Reroll {
-                        count,
-                        condition,
-                        times,
-                    }
+                    DiceModifier::Reroll { condition, times }
                 }
                 TokenKind::U => {
                     has_u = true;
@@ -598,7 +587,7 @@ mod tests {
 
     #[test]
     fn parses_new_modifiers() {
-        let expr = Parser::new("4d6r2<=3times2kh2d>=5c>=6smin2max5")
+        let expr = Parser::new("4d6r<=3times2kh2d>=5c>=6smin2max5")
             .parse()
             .expect("parse should succeed");
 
@@ -608,7 +597,6 @@ mod tests {
                     dice.modifiers,
                     vec![
                         DiceModifier::Reroll {
-                            count: 2,
                             times: 2,
                             condition: Condition {
                                 target: 3,
@@ -659,7 +647,6 @@ mod tests {
                             target: 6,
                             op: ModifierOp::GreaterEqual
                         },
-                        times: Some(3),
                     }]
                 );
             }

@@ -1,23 +1,23 @@
+use std::fmt::Display;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum RollError {
-    #[error("expression is empty")]
-    EmptyExpression,
-    #[error("expression is too long: {actual} (max {max})")]
-    ExpressionTooLong { max: usize, actual: usize },
-    #[error("lex error at {span}: {message}")]
-    Lex { message: String, span: Span },
-    #[error("parse error at {span}: {message}")]
-    Parse { message: String, span: Span },
-    #[error("evaluation error: {0}")]
-    Eval(String),
+pub enum LexerError {
+    #[error("Failed to parse {token} at {span}")]
+    ParseError { token: String, span: Span },
+    #[error("Unknown identifier {ident} at {span}")]
+    UnknownIdentifier { ident: String, span: Span },
+    #[error("Unexpected token {} at {}", token.kind, token.span)]
+    UnexpectedToken { token: Token },
+    #[error("Unexpected end of expression")]
+    UnexpectedEof,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
-    Number(i32),
-    Dice,
+    Number(u32),
+    D,
     Percent,
     Fudge,
     Plus,
@@ -31,12 +31,10 @@ pub enum TokenKind {
     Equal,
     Greater,
     Less,
+    H,
+    L,
     Ex,
     Times,
-    Dl,
-    Dh,
-    Kh,
-    Kl,
     K,
     R,
     U,
@@ -53,7 +51,7 @@ impl std::fmt::Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Number(num) => write!(f, "{}", num),
-            Self::Dice => write!(f, "d"),
+            Self::D => write!(f, "d"),
             Self::Percent => write!(f, "%"),
             Self::Fudge => write!(f, "F"),
             Self::Plus => write!(f, "+"),
@@ -69,10 +67,6 @@ impl std::fmt::Display for TokenKind {
             Self::Less => write!(f, "<"),
             Self::Ex => write!(f, "ex"),
             Self::Times => write!(f, "times"),
-            Self::Dl => write!(f, "dl"),
-            Self::Dh => write!(f, "dh"),
-            Self::Kh => write!(f, "kh"),
-            Self::Kl => write!(f, "kl"),
             Self::K => write!(f, "k"),
             Self::R => write!(f, "r"),
             Self::U => write!(f, "u"),
@@ -83,11 +77,13 @@ impl std::fmt::Display for TokenKind {
             Self::Max => write!(f, "max"),
             Self::Adv => write!(f, "adv"),
             Self::Dis => write!(f, "dis"),
+            Self::H => write!(f, "h"),
+            Self::L => write!(f, "l"),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Span {
     start: usize,
     end: usize,
@@ -105,15 +101,22 @@ impl std::fmt::Display for Span {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Token {
     span: Span,
-    kind: TokenKind,
+    pub(crate) kind: TokenKind,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
+    }
 }
 
 pub struct Lexer<'input> {
     whole: &'input str,
     rest: &'input str,
+    peeked: Option<Result<Token, LexerError>>,
 }
 
 impl<'input> Lexer<'input> {
@@ -124,14 +127,40 @@ impl<'input> Lexer<'input> {
         Self {
             whole: input,
             rest: input,
+            peeked: None,
+        }
+    }
+    pub fn peek(&mut self) -> Option<&Result<Token, LexerError>> {
+        if self.peeked.is_some() {
+            return self.peeked.as_ref();
+        }
+        self.peeked = self.next();
+        self.peeked.as_ref()
+    }
+    pub fn give_back(&mut self, token: Token) {
+        debug_assert!(self.peeked.is_none());
+        self.peeked = Some(Ok(token));
+    }
+    pub fn expect(&mut self, kind: TokenKind) -> Result<Token, LexerError> {
+        self.expect_where(|next_kind| next_kind == &kind)
+    }
+    pub fn expect_where(&mut self, cond: impl Fn(&TokenKind) -> bool) -> Result<Token, LexerError> {
+        match self.next() {
+            Some(Ok(token)) if cond(&token.kind) => Ok(token),
+            Some(Ok(token)) => Err(LexerError::UnexpectedToken { token }),
+            Some(err) => err,
+            None => Err(LexerError::UnexpectedEof),
         }
     }
 }
 
 impl<'input> Iterator for Lexer<'input> {
-    type Item = Result<Token, RollError>;
+    type Item = Result<Token, LexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.peeked.is_some() {
+            return self.peeked.take();
+        }
         loop {
             let mut chars = self.rest.chars();
             let c = chars.next()?;
@@ -172,6 +201,8 @@ impl<'input> Iterator for Lexer<'input> {
                 'c' => return just(TokenKind::C),
                 'u' => return just(TokenKind::U),
                 'f' => return just(TokenKind::Fudge),
+                'l' => return just(TokenKind::L),
+                'h' => return just(TokenKind::H),
                 '<' => Started::IfEqualElse(TokenKind::LessEqual, TokenKind::Less),
                 '>' => Started::IfEqualElse(TokenKind::GreaterEqual, TokenKind::Greater),
                 'a' => Started::A,
@@ -184,15 +215,17 @@ impl<'input> Iterator for Lexer<'input> {
                 x if x.is_numeric() => Started::Number,
                 x if x.is_whitespace() => continue,
                 x => {
-                    return Some(Err(RollError::Lex {
-                        message: format!("unknown identifier {x}"),
+                    return Some(Err(LexerError::UnknownIdentifier {
                         span: Span::new(c_at, c_at + 1),
+                        ident: x.to_string(),
                     }));
                 }
             };
 
             let mut check_start = |expected: &str, on_success: TokenKind| {
-                if self.rest[..expected.len()].eq_ignore_ascii_case(expected) {
+                if self.rest.len() >= expected.len()
+                    && self.rest[..expected.len()].eq_ignore_ascii_case(expected)
+                {
                     self.rest = &self.rest[expected.len()..];
                     Some(Ok(Token {
                         kind: on_success,
@@ -213,10 +246,10 @@ impl<'input> Iterator for Lexer<'input> {
                     let n = match digits.parse() {
                         Ok(num) => num,
                         Err(_) => {
-                            return Some(Err(RollError::Lex {
-                                message: format!("Failed to parse {digits} as i32"),
+                            return Some(Err(LexerError::ParseError {
+                                token: digits.to_string(),
                                 span: Span::new(c_at, c_to),
-                            }));
+                            }))
                         }
                     };
                     self.rest = &self.rest[first_non_digit..];
@@ -226,14 +259,9 @@ impl<'input> Iterator for Lexer<'input> {
                     }))
                 }
                 Started::A => check_start("dv", TokenKind::Adv),
-                Started::D => check_start("is", TokenKind::Dis)
-                    .or_else(|| check_start("l", TokenKind::Dl))
-                    .or_else(|| check_start("h", TokenKind::Dh))
-                    .or(just(TokenKind::Dice)),
+                Started::D => check_start("is", TokenKind::Dis).or(just(TokenKind::D)),
                 Started::E => check_start("x", TokenKind::Ex),
-                Started::K => check_start("h", TokenKind::Kh)
-                    .or_else(|| check_start("l", TokenKind::Kl))
-                    .or(just(TokenKind::K)),
+                Started::K => just(TokenKind::K),
                 Started::S => check_start("a", TokenKind::Sa).or(just(TokenKind::S)),
                 Started::M => {
                     check_start("in", TokenKind::Min).or_else(|| check_start("ax", TokenKind::Max))
@@ -242,8 +270,8 @@ impl<'input> Iterator for Lexer<'input> {
                 Started::T => check_start("imes", TokenKind::Times),
             };
             break result.or_else(|| {
-                Some(Err(RollError::Lex {
-                    message: format!("unknown identifier {}", &self.whole[c_at..c_at + 2]),
+                Some(Err(LexerError::UnknownIdentifier {
+                    ident: self.whole[c_at..c_at + 2].to_string(),
                     span: Span::new(c_at, c_at + 2),
                 }))
             });
@@ -251,7 +279,7 @@ impl<'input> Iterator for Lexer<'input> {
     }
 }
 
-pub fn lex(input: &str) -> Result<Vec<Token>, RollError> {
+pub fn lex(input: &str) -> Result<Vec<Token>, LexerError> {
     Lexer::new(input).collect()
 }
 
@@ -272,11 +300,11 @@ mod tests {
             kinds,
             vec![
                 TokenKind::Number(2),
-                TokenKind::Dice,
+                TokenKind::D,
                 TokenKind::Number(10),
                 TokenKind::Plus,
                 TokenKind::Number(1),
-                TokenKind::Dice,
+                TokenKind::D,
                 TokenKind::Number(6),
                 TokenKind::Plus,
                 TokenKind::Number(5),
@@ -297,15 +325,17 @@ mod tests {
             kinds,
             vec![
                 TokenKind::Number(1),
-                TokenKind::Dice,
+                TokenKind::D,
                 TokenKind::Number(6),
                 TokenKind::Ex,
                 TokenKind::Number(6),
                 TokenKind::Times,
                 TokenKind::Number(2),
-                TokenKind::Dl,
+                TokenKind::D,
+                TokenKind::L,
                 TokenKind::Number(2),
-                TokenKind::Dh,
+                TokenKind::D,
+                TokenKind::H,
                 TokenKind::Adv,
                 TokenKind::Dis,
             ]
@@ -325,7 +355,7 @@ mod tests {
             kinds,
             vec![
                 TokenKind::Number(4),
-                TokenKind::Dice,
+                TokenKind::D,
                 TokenKind::Fudge,
                 TokenKind::Min,
                 TokenKind::Number(0),
@@ -342,7 +372,7 @@ mod tests {
                 TokenKind::Equal,
                 TokenKind::Number(1),
                 TokenKind::Sa,
-                TokenKind::Dice,
+                TokenKind::D,
                 TokenKind::GreaterEqual,
                 TokenKind::Number(1),
             ]
@@ -352,6 +382,9 @@ mod tests {
     #[test]
     fn rejects_unknown_identifier() {
         let error = lex("1d6foo").expect_err("lex should fail");
-        assert!(error.to_string().contains("unknown identifier"));
+        assert!(error
+            .to_string()
+            .to_lowercase()
+            .contains("unknown identifier"));
     }
 }

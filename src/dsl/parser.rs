@@ -6,6 +6,8 @@ use crate::dsl::lexer::{Lexer, LexerError, Token, TokenKind};
 pub enum ParserError {
     #[error("Unterminated expression")]
     UnterminatedExpression,
+    #[error("Malformed expression")]
+    MalformedExpression,
     #[error("Lexer error {error}")]
     LexerError { error: LexerError },
     #[error("Unexpected token found {token}")]
@@ -152,7 +154,12 @@ impl<'input> Parser<'input> {
     }
 
     pub fn parse(&mut self) -> ParseResult {
-        self.parse_expr_within(0)
+        let result = self.parse_expr_within(0)?;
+        if !self.lexer.is_done() {
+            Err(ParserError::MalformedExpression)
+        } else {
+            Ok(result)
+        }
     }
 
     fn peek_number(&mut self) -> Option<&u32> {
@@ -623,7 +630,7 @@ mod tests {
 
     #[test]
     fn ex_defaults_to_unlimited_extra_rolls() {
-        let expr = Parser::new("1d6ex2>=6times3")
+        let expr = Parser::new("1d6ex>=6times3")
             .parse()
             .expect("parse should succeed");
 
@@ -632,7 +639,7 @@ mod tests {
                 assert_eq!(
                     dice.modifiers,
                     vec![DiceModifier::Explode {
-                        count: Some(2),
+                        count: Some(3),
                         condition: Condition::new(6, ModifierOp::GreaterEqual)
                     }]
                 );
@@ -689,6 +696,14 @@ mod tests {
             .parse()
             .expect_err("parse should fail");
         assert!(error.to_string().contains("Unexpected end of expression"));
+    }
+
+    #[test]
+    fn bug_repro_allows_unmatched_closing_paren_and_trailing_expr() {
+        // Known bug repro: parser stops at ')' and ignores the trailing "+2".
+        let error = Parser::new("1)+2").parse().expect_err("parse should fail");
+
+        assert!(error.to_string().contains("Malformed expression"));
     }
 
     #[test]

@@ -171,13 +171,13 @@ impl<R: DiceRng> Interpreter<R> {
                     }
                     while reroll_count > 0 {
                         let roll = self.roll_dice(dice.kind);
-                        let unique = out.iter().any(|r| r.result == roll);
+                        let duplicate = out.iter().any(|r| r.result == roll);
 
                         out.push(DiceRoll {
-                            dropped: !unique,
+                            dropped: duplicate,
                             result: roll,
                         });
-                        if unique {
+                        if !duplicate {
                             reroll_count -= 1;
                         }
                     }
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn explode_respects_times_limit() {
         let rng = StubRng::new(vec![6, 6, 2]);
-        let result = stub_roll("1d6ex2=6", rng).expect("roll should succeed");
+        let result = stub_roll("1d6ex=6times2", rng).expect("roll should succeed");
 
         assert_eq!(result.total(), 14);
     }
@@ -523,6 +523,26 @@ mod tests {
         let result = stub_roll("-2 * 3", rng).expect("parse should succeed");
 
         assert_eq!(result.total(), -6);
+    }
+
+    #[test]
+    fn bug_repro_unique_modifier_keeps_duplicate_value() {
+        // Known bug repro: unique reroll logic can keep a duplicate and drop a unique roll.
+        let rng = StubRng::new(vec![1, 1, 2, 3, 1, 6, 5, 3, 2, 1, 3, 4]);
+        let result = stub_roll("6d6u", rng).expect("roll should succeed");
+
+        match result {
+            EvalResult::DiceRollGroup { rolls, .. } => {
+                let mut kept = rolls
+                    .into_iter()
+                    .filter(|r| !r.dropped)
+                    .map(|r| r.result)
+                    .collect::<Vec<_>>();
+                kept.sort_unstable();
+                assert_eq!(kept, vec![1, 2, 3, 4, 5, 6]);
+            }
+            _ => panic!("expected dice roll group"),
+        }
     }
 
     #[test]

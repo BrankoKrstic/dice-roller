@@ -2,7 +2,7 @@ use rand::{rngs::ThreadRng, RngExt};
 use thiserror::Error;
 
 use crate::dsl::parser::{
-    Ast, BinaryOp, Condition, Dice, DiceKind, DiceModifier, ModifierOp, Parser, SortOrder, UnaryOp,
+    Ast, BinaryOp, Condition, Dice, DiceKind, DiceModifier, ModifierOp, SortOrder, UnaryOp,
 };
 
 pub trait DiceRng {
@@ -62,18 +62,9 @@ impl EvalResult {
     pub fn total(&self) -> i64 {
         match self {
             EvalResult::Number { value } => *value,
-            EvalResult::DiceRollGroup {
-                counted,
-                value,
-                rolls,
-            } => *counted.as_ref().unwrap_or(value),
-            EvalResult::Unary { op, value, child } => *value,
-            EvalResult::Binary {
-                op,
-                value,
-                lhs,
-                rhs,
-            } => *value,
+            EvalResult::DiceRollGroup { counted, value, .. } => *counted.as_ref().unwrap_or(value),
+            EvalResult::Unary { value, .. } => *value,
+            EvalResult::Binary { value, .. } => *value,
         }
     }
 }
@@ -105,7 +96,7 @@ impl std::fmt::Display for EvalResult {
             EvalResult::Unary { op, value, child } => {
                 write!(
                     f,
-                    "{}({child}) -> value",
+                    "{}({child}) -> {value}",
                     match op {
                         UnaryOp::Negate => '-',
                     }
@@ -134,7 +125,7 @@ impl EvalResult {
     fn get_val(&self) -> i64 {
         match self {
             EvalResult::Number { value } => *value,
-            EvalResult::DiceRollGroup { value, .. } => *value,
+            EvalResult::DiceRollGroup { value, counted, .. } => *counted.as_ref().unwrap_or(value),
             EvalResult::Unary { value, .. } => *value,
             EvalResult::Binary { value, .. } => *value,
         }
@@ -154,7 +145,7 @@ impl<R: DiceRng> Interpreter<R> {
     pub fn roll_dice(&mut self, dice: DiceKind) -> i64 {
         match dice {
             DiceKind::DFudge => self.rng.roll_inclusive(-1, 1),
-            x => self.rng.roll_inclusive(0, x.max_val() as i64),
+            x => self.rng.roll_inclusive(1, x.max_val() as i64),
         }
     }
 
@@ -247,14 +238,14 @@ impl<R: DiceRng> Interpreter<R> {
             match m {
                 DiceModifier::Keep { condition } => {
                     let indices = find_cond_indices(&out[..], *condition);
-                    for i in 0..out.len() {
-                        out[i].dropped = !indices.contains(&i);
+                    for (i, el) in out.iter_mut().enumerate() {
+                        el.dropped = !indices.contains(&i);
                     }
                 }
                 DiceModifier::Drop { condition } => {
                     let indices = find_cond_indices(&out[..], *condition);
-                    for i in 0..out.len() {
-                        out[i].dropped = indices.contains(&i);
+                    for (i, el) in out.iter_mut().enumerate() {
+                        el.dropped = indices.contains(&i);
                     }
                 }
 
@@ -509,7 +500,7 @@ mod tests {
 
     #[test]
     fn explode_respects_times_limit() {
-        let mut rng = StubRng::new(vec![6, 6, 2]);
+        let rng = StubRng::new(vec![6, 6, 2]);
         let result = stub_roll("1d6ex2=6", rng).expect("roll should succeed");
 
         assert_eq!(result.total(), 14);
@@ -517,18 +508,18 @@ mod tests {
 
     #[test]
     fn supports_advantage_and_disadvantage() {
-        let mut adv_rng = StubRng::new(vec![18, 5]);
+        let adv_rng = StubRng::new(vec![18, 5]);
         let adv = stub_roll("d20adv", adv_rng).expect("roll should succeed");
         assert_eq!(adv.total(), 18);
 
-        let mut dis_rng = StubRng::new(vec![18, 5]);
+        let dis_rng = StubRng::new(vec![18, 5]);
         let dis = stub_roll("d20dis", dis_rng).expect("roll should succeed");
         assert_eq!(dis.total(), 5);
     }
 
     #[test]
     fn unary_minus_precedence_is_higher_than_multiplication() {
-        let mut rng = StubRng::new(vec![]);
+        let rng = StubRng::new(vec![]);
         let result = stub_roll("-2 * 3", rng).expect("parse should succeed");
 
         assert_eq!(result.total(), -6);
@@ -536,7 +527,7 @@ mod tests {
 
     #[test]
     fn rejects_division_by_zero() {
-        let mut rng = StubRng::new(vec![]);
+        let rng = StubRng::new(vec![]);
         let error = stub_roll("1 / 0", rng).expect_err("roll should fail");
         assert!(error
             .to_string()

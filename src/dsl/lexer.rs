@@ -270,9 +270,10 @@ impl<'input> Iterator for Lexer<'input> {
                 Started::T => check_start("imes", TokenKind::Times),
             };
             break result.or_else(|| {
+                let max_idx = (c_at + 2).min(self.whole.len());
                 Some(Err(LexerError::UnknownIdentifier {
-                    ident: self.whole[c_at..(c_at + 2).min(self.whole.len())].to_string(),
-                    span: Span::new(c_at, c_at + 2),
+                    ident: self.whole[c_at..max_idx].to_string(),
+                    span: Span::new(c_at, max_idx),
                 }))
             });
         }

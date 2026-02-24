@@ -183,7 +183,7 @@ impl<'input> Parser<'input> {
         if matches!(token.kind, TokenKind::Times) {
             self.lexer.next();
             if self.peek_number().is_some() {
-                return self.expect_number().map(|num| Some(num));
+                return self.expect_number().map(Some);
             } else {
                 return Ok(None);
             }
@@ -241,7 +241,7 @@ impl<'input> Parser<'input> {
         Ok(Ast::Dice(dice))
     }
 
-    fn parse_modifiers(&mut self, mut count: u32, dice: DiceKind) -> Result<Dice, ParserError> {
+    fn parse_modifiers(&mut self, count: u32, dice: DiceKind) -> Result<Dice, ParserError> {
         let mut out = vec![];
         let mut has_adv = false;
         let mut has_dis = false;
@@ -257,21 +257,16 @@ impl<'input> Parser<'input> {
                 }
                 TokenKind::Ex => {
                     self.lexer.next();
-                    let threshold = if self.peek_number().is_some() {
-                        Some(self.expect_number()?)
-                    } else {
-                        None
-                    };
                     let condition = self
                         .parse_condition()?
                         .unwrap_or(Condition::new(dice.max_val(), ModifierOp::Equal));
 
                     let times = self.parse_times()?;
 
-                    Self::validate_condition(dice, condition.clone(), count, times)?;
+                    Self::validate_condition(dice, condition, count, times)?;
 
                     DiceModifier::Explode {
-                        count: threshold,
+                        count: times,
                         condition,
                     }
                 }

@@ -673,7 +673,7 @@ mod tests {
         let error = Parser::new("d6adv").parse().expect_err("parse should fail");
         assert!(error
             .to_string()
-            .contains("Adv and dis modifiers can only be used with d2"));
+            .contains("Adv and dis modifiers can only be used with d20"));
     }
 
     #[test]
@@ -696,7 +696,6 @@ mod tests {
 
     #[test]
     fn disallows_unmatched_closing_brace() {
-        // Known bug repro: parser stops at ')' and ignores the trailing "+2".
         let error = Parser::new("1)+2").parse().expect_err("parse should fail");
 
         assert!(error.to_string().contains("Malformed expression"));

@@ -271,7 +271,7 @@ impl<'input> Iterator for Lexer<'input> {
             };
             break result.or_else(|| {
                 Some(Err(LexerError::UnknownIdentifier {
-                    ident: self.whole[c_at..c_at + 2].to_string(),
+                    ident: self.whole[c_at..(c_at + 2).min(self.whole.len())].to_string(),
                     span: Span::new(c_at, c_at + 2),
                 }))
             });

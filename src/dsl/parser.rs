@@ -22,7 +22,7 @@ impl From<LexerError> for ParserError {
     }
 }
 
-struct Parser<'input> {
+pub struct Parser<'input> {
     whole: &'input str,
     lexer: Lexer<'input>,
 }
@@ -99,6 +99,12 @@ pub enum ModifierOp {
 pub struct Condition {
     pub(crate) target: u32,
     pub(crate) op: ModifierOp,
+}
+
+impl Condition {
+    pub fn new(target: u32, op: ModifierOp) -> Self {
+        Self { target, op }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -207,7 +213,7 @@ impl<'input> Parser<'input> {
             },
             _ => self.expect_number()?,
         };
-        Ok(Some(Condition { target, op }))
+        Ok(Some(Condition::new(target, op)))
     }
 
     fn parse_dice(&mut self, count: u32) -> ParseResult {
@@ -244,10 +250,9 @@ impl<'input> Parser<'input> {
             let modifier = match token.kind {
                 TokenKind::D => {
                     self.lexer.next();
-                    let condition = self.parse_condition()?.unwrap_or(Condition {
-                        target: 1,
-                        op: ModifierOp::Lowest,
-                    });
+                    let condition = self
+                        .parse_condition()?
+                        .unwrap_or(Condition::new(1, ModifierOp::Lowest));
                     DiceModifier::Drop { condition }
                 }
                 TokenKind::Ex => {
@@ -257,10 +262,9 @@ impl<'input> Parser<'input> {
                     } else {
                         None
                     };
-                    let condition = self.parse_condition()?.unwrap_or(Condition {
-                        target: dice.max_val(),
-                        op: ModifierOp::Equal,
-                    });
+                    let condition = self
+                        .parse_condition()?
+                        .unwrap_or(Condition::new(dice.max_val(), ModifierOp::Equal));
 
                     let times = self.parse_times()?;
 
@@ -292,6 +296,15 @@ impl<'input> Parser<'input> {
                 TokenKind::U => {
                     has_u = true;
                     self.lexer.next();
+                    let options = match dice {
+                        DiceKind::DFudge => 3,
+                        x => x.max_val(),
+                    };
+                    if count > options {
+                        Err(ParserError::InvalidModifiers {
+                            message: "More dice then there are possible unique results".to_string(),
+                        })?;
+                    }
                     DiceModifier::Unique
                 }
                 TokenKind::C => {
@@ -305,7 +318,7 @@ impl<'input> Parser<'input> {
                 }
                 TokenKind::Sa => {
                     self.lexer.next();
-                    DiceModifier::Sort(SortOrder::Dsc)
+                    DiceModifier::Sort(SortOrder::Asc)
                 }
                 TokenKind::Min => {
                     self.lexer.next();
@@ -326,10 +339,7 @@ impl<'input> Parser<'input> {
                         })?;
                     }
                     DiceModifier::Drop {
-                        condition: Condition {
-                            target: 1,
-                            op: ModifierOp::Lowest,
-                        },
+                        condition: Condition::new(1, ModifierOp::Lowest),
                     }
                 }
                 TokenKind::Dis => {
@@ -341,10 +351,7 @@ impl<'input> Parser<'input> {
                         })?;
                     }
                     DiceModifier::Drop {
-                        condition: Condition {
-                            target: 1,
-                            op: ModifierOp::Highest,
-                        },
+                        condition: Condition::new(1, ModifierOp::Highest),
                     }
                 }
                 _ => break,
@@ -562,10 +569,7 @@ mod tests {
                 assert_eq!(
                     dice.modifiers,
                     vec![DiceModifier::Drop {
-                        condition: Condition {
-                            target: 1,
-                            op: ModifierOp::Lowest
-                        }
+                        condition: Condition::new(1, ModifierOp::Lowest),
                     }]
                 );
             }
@@ -598,22 +602,13 @@ mod tests {
                     vec![
                         DiceModifier::Reroll {
                             times: 2,
-                            condition: Condition {
-                                target: 3,
-                                op: ModifierOp::LessEqual
-                            }
+                            condition: Condition::new(3, ModifierOp::LessEqual),
                         },
                         DiceModifier::Keep {
-                            condition: Condition {
-                                target: 2,
-                                op: ModifierOp::Highest
-                            }
+                            condition: Condition::new(2, ModifierOp::Highest),
                         },
                         DiceModifier::Drop {
-                            condition: Condition {
-                                target: 5,
-                                op: ModifierOp::GreaterEqual
-                            }
+                            condition: Condition::new(5, ModifierOp::GreaterEqual),
                         },
                         DiceModifier::Count {
                             condition: Some(Condition {
@@ -643,10 +638,7 @@ mod tests {
                     dice.modifiers,
                     vec![DiceModifier::Explode {
                         count: Some(2),
-                        condition: Condition {
-                            target: 6,
-                            op: ModifierOp::GreaterEqual
-                        },
+                        condition: Condition::new(6, ModifierOp::GreaterEqual)
                     }]
                 );
             }
@@ -666,16 +658,10 @@ mod tests {
                     dice.modifiers,
                     vec![
                         DiceModifier::Drop {
-                            condition: Condition {
-                                target: 1,
-                                op: ModifierOp::Lowest
-                            }
+                            condition: Condition::new(1, ModifierOp::Lowest)
                         },
                         DiceModifier::Drop {
-                            condition: Condition {
-                                target: 1,
-                                op: ModifierOp::Highest
-                            }
+                            condition: Condition::new(1, ModifierOp::Highest)
                         }
                     ]
                 );
@@ -708,5 +694,14 @@ mod tests {
             .parse()
             .expect_err("parse should fail");
         assert!(error.to_string().contains("Unexpected end of expression"));
+    }
+
+    #[test]
+    fn rejects_unique_when_not_enough_outcomes() {
+        let error = Parser::new("4dFu").parse().expect_err("parse should fail");
+
+        assert!(error
+            .to_string()
+            .contains("More dice then there are possible unique result"));
     }
 }

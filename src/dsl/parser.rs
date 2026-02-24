@@ -189,11 +189,7 @@ impl<'input> Parser<'input> {
         };
         if matches!(token.kind, TokenKind::Times) {
             self.lexer.next();
-            if self.peek_number().is_some() {
-                return self.expect_number().map(Some);
-            } else {
-                return Ok(None);
-            }
+            return self.expect_number().map(Some);
         }
         Ok(None)
     }
@@ -699,7 +695,7 @@ mod tests {
     }
 
     #[test]
-    fn bug_repro_allows_unmatched_closing_paren_and_trailing_expr() {
+    fn disallows_unmatched_closing_brace() {
         // Known bug repro: parser stops at ')' and ignores the trailing "+2".
         let error = Parser::new("1)+2").parse().expect_err("parse should fail");
 

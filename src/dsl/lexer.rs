@@ -121,7 +121,7 @@ pub struct Lexer<'input> {
 
 impl<'input> Lexer<'input> {
     pub fn is_done(&self) -> bool {
-        self.rest.is_empty()
+        self.rest.is_empty() && self.peeked.is_none()
     }
     pub fn new(input: &'input str) -> Self {
         Self {

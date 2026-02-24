@@ -205,9 +205,10 @@ impl<R: DiceRng> Interpreter<R> {
                     while count > 0 && max_count > 0 {
                         let roll = self.roll_dice(dice.kind);
                         if !match_cond(roll) {
-                            count += 1;
+                            count -= 1;
+                        } else {
+                            max_count -= 1;
                         }
-                        max_count -= 1;
                         out.push(DiceRoll {
                             dropped: false,
                             result: roll,
@@ -526,7 +527,7 @@ mod tests {
     }
 
     #[test]
-    fn bug_repro_unique_modifier_keeps_duplicate_value() {
+    fn unique_modifier_returns_all_unique_values() {
         // Known bug repro: unique reroll logic can keep a duplicate and drop a unique roll.
         let rng = StubRng::new(vec![1, 1, 2, 3, 1, 6, 5, 3, 2, 1, 3, 4]);
         let result = stub_roll("6d6u", rng).expect("roll should succeed");

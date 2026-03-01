@@ -17,6 +17,10 @@ tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 wasm-bindgen = { version = "0.2.106", optional = true }
 thiserror = "2.0.18"
 rand = "0.10.0"
+getrandom = { version = "0.4.1", features = ["wasm_js"] }
+leptos-use = { version = "0.18.3", features = ["storage"] }
+serde = { version = "1.0.228", features = ["derive"] }
+stylance = "0.7.4"
 
 [features]
 hydrate = [
@@ -31,6 +35,8 @@ ssr = [
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
+    "leptos-use/ssr",
+    "leptos-use/axum"
 ]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
@@ -102,3 +108,10 @@ lib-default-features = false
 #
 # Optional. Defaults to "release".
 lib-profile-release = "wasm-release"
+
+[package.metadata.stylance]
+# output_file
+# When set, stylance-cli will bundle all css module files
+# by concatenating them and put the result in this file.
+output_file = "./style/bundle.scss"
+

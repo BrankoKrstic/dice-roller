@@ -1,6 +1,10 @@
 use thiserror::Error;
 
-use crate::dsl::lexer::LexerError;
+use crate::dsl::{
+    interpreter::{CryptoDiceRng, EvalResult, InterpreterError},
+    lexer::LexerError,
+    parser::ParserError,
+};
 
 pub mod interpreter;
 pub mod lexer;
@@ -12,6 +16,21 @@ impl From<LexerError> for RollError {
     }
 }
 
+impl From<ParserError> for RollError {
+    fn from(value: ParserError) -> Self {
+        match value {
+            ParserError::LexerError { error } => error.into(),
+            err => Self::Parse { error: err },
+        }
+    }
+}
+
+impl From<InterpreterError> for RollError {
+    fn from(value: InterpreterError) -> Self {
+        Self::Eval { error: value }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum RollError {
     #[error("expression is empty")]
@@ -20,6 +39,15 @@ pub enum RollError {
     ExpressionTooLong { max: usize, actual: usize },
     #[error("lex error {error}")]
     Lex { error: LexerError },
-    #[error("evaluation error: {0}")]
-    Eval(String),
+    #[error("parse error {error}")]
+    Parse { error: ParserError },
+    #[error("evaluation error: {error}")]
+    Eval { error: InterpreterError },
+}
+
+pub fn parse_and_roll(input: &str) -> Result<EvalResult, RollError> {
+    let mut parser = parser::Parser::new(input);
+    let ast = parser.parse()?;
+    let mut runtime = interpreter::Interpreter::new(CryptoDiceRng::new());
+    Ok(runtime.eval_ast(&ast)?)
 }

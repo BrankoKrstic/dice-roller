@@ -108,3 +108,27 @@
   transform: translateY(-1px);
   border-color: var(--accent);
 }
+
+@media (max-width: 760px) {
+  .header-inner {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand toggle"
+      "nav nav";
+    row-gap: 0.65rem;
+    padding: 0.65rem 0;
+  }
+
+  .brand {
+    grid-area: brand;
+  }
+
+  .nav {
+    grid-area: nav;
+  }
+
+  .theme-toggle {
+    grid-area: toggle;
+    justify-self: end;
+  }
+}

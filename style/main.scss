@@ -67,3 +67,49 @@ a {
   width: min(1100px, 100% - 2rem);
   padding: 2rem 0 3rem;
 }
+
+@media (max-width: 760px) {
+  .app-main {
+    width: min(1100px, 100% - 1.2rem);
+    padding-top: 1.2rem;
+  }
+}
+
+.page {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.button-primary {
+  min-height: 2.8rem;
+  border-color: transparent;
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button-secondary {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  min-height: 2.2rem;
+  padding: 0 0.8rem;
+  font-weight: 650;
+}
+
+.button-secondary-active,
+.button-secondary:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.button-secondary-ghost {
+  color: var(--text-muted);
+}

@@ -1,17 +1,42 @@
+use chrono::Utc;
 use leptos::prelude::*;
 
-use crate::client::{
-    components::roll_editor::RollEditor,
-    context::theme::{toggle_theme, use_theme_context, Theme},
+use crate::{
+    client::{
+        components::{roll_editor::RollEditor, roll_feed::RollFeed},
+        context::theme::{toggle_theme, use_theme_context, Theme},
+        utils::roll_feed::{DiceRoll, DiceRollFeed},
+    },
+    dsl::parse_and_roll,
+    shared::utils::time::format_timestamp,
 };
 
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
     let theme = use_theme_context();
+    let feed = RwSignal::new(DiceRollFeed::new());
+    let (loading_more, set_loading_more) = signal(false);
 
+    let load_older_rolls = || {};
+
+    let process_roll = move |expr: String| {
+        let result = parse_and_roll(&expr).unwrap();
+        let new_roll = DiceRoll {
+            id: String::new(),
+            user_id: String::new(),
+            user_name: String::from("you"),
+            ts: format_timestamp(Utc::now()),
+            expr,
+            result: result.total(),
+            breakdown: result.to_string(),
+        };
+
+        feed.write().add_roll(new_roll);
+    };
     view! {
-        <div>
-            <RollEditor />
+        <div class="page">
+            <RollEditor on_roll=process_roll />
+            <RollFeed feed=feed loading_more=false load_older_rolls=load_older_rolls />
         </div>
     }
 }

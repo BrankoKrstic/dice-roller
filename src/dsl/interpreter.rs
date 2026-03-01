@@ -9,8 +9,15 @@ pub trait DiceRng {
     fn roll_inclusive(&mut self, start: i64, end: i64) -> i64;
 }
 
+#[derive(Default)]
 pub struct CryptoDiceRng {
     rng: ThreadRng,
+}
+
+impl CryptoDiceRng {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl DiceRng for CryptoDiceRng {
@@ -198,7 +205,7 @@ impl<R: DiceRng> Interpreter<R> {
                         }
                     };
 
-                    let mut max_count = count.unwrap_or(1) as usize;
+                    let mut max_count = count.unwrap_or(1000) as usize;
 
                     let mut count = out.iter().filter(|r| match_cond(r.result)).count();
 

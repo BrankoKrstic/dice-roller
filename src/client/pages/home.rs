@@ -1,6 +1,9 @@
 use leptos::prelude::*;
 
-use crate::client::context::theme::{toggle_theme, use_theme_context, Theme};
+use crate::client::{
+    components::roll_editor::RollEditor,
+    context::theme::{toggle_theme, use_theme_context, Theme},
+};
 
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
@@ -8,13 +11,7 @@ pub(crate) fn HomePage() -> impl IntoView {
 
     view! {
         <div>
-            <div>
-                {move || match theme.get() {
-                    Theme::Light => "LIGHT",
-                    Theme::Dark => "DARK",
-                }}
-            </div>
-            <button on:click=|_| toggle_theme()>"Toggle Theme"</button>
+            <RollEditor />
         </div>
     }
 }

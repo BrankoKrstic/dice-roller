@@ -13,7 +13,7 @@ pub fn NavBar() -> impl IntoView {
             <div class=style::header_inner>
                 <a class=style::brand href="/">
                     <span class=style::brand_mark>"d20"</span>
-                    <span class=style::brand_text>"Dice Roller AI"</span>
+                    <span class=style::brand_text>"Dice Roller"</span>
                 </a>
 
                 <nav class=style::nav aria-label="Main">

@@ -1,0 +1,174 @@
+.roll-editor {
+  display: grid;
+  gap: 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: clamp(1rem, 1.8vw, 1.3rem);
+}
+
+.roll-editor-mode-switch {
+  display: inline-flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.roll-editor-mode-pill {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 650;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+}
+
+.roll-editor-mode-pill-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.roll-editor-panel,
+.expression-editor-panel {
+  display: grid;
+  gap: 0.95rem;
+}
+
+.roll-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.die-card {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--surface-strong);
+  padding: 0.6rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.die-card-face {
+  border: 0;
+  border-radius: 0.65rem;
+  min-height: 2.65rem;
+  font: inherit;
+  font-weight: 750;
+  font-size: 1rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  cursor: pointer;
+}
+
+.die-card-controls {
+  display: grid;
+  grid-template-columns: 2rem 1fr 2rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.die-card-step,
+.quick-action,
+.roll-button,
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.die-card-step {
+  min-height: 2rem;
+  font-weight: 700;
+}
+
+.die-card-count {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.dice-panel-controls {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.editor-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.flat-modifier-input,
+.expression-editor-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+}
+
+.expression-editor-input {
+  min-height: 7.2rem;
+  resize: vertical;
+}
+
+.quick-actions,
+.expression-editor-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.quick-action,
+.chip {
+  min-height: 2.2rem;
+  padding: 0 0.8rem;
+  font-weight: 650;
+}
+
+.quick-action:hover,
+.chip:hover,
+.die-card-step:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.quick-action-ghost {
+  color: var(--text-muted);
+}
+
+.expression-editor-preview {
+  border: 1px dashed var(--border);
+  border-radius: 0.8rem;
+  background: var(--surface-muted);
+  padding: 0.7rem 0.8rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.expression-editor-preview-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.expression-editor-preview-code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  word-break: break-word;
+}

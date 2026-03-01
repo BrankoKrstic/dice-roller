@@ -1,3 +1,3 @@
 #!/bin/bash
 
-stylance . && cargo build --release
+stylance . && cargo leptos build --release

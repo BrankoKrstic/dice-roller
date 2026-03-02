@@ -309,6 +309,13 @@ impl Default for EditorState {
     }
 }
 impl EditorState {
+    pub fn new(mode: EditorMode, expr: String, builder: RollBuilder) -> Self {
+        Self {
+            mode,
+            expr: RwSignal::new(expr),
+            builder: RwSignal::new(builder),
+        }
+    }
     pub fn get_expr(&self) -> String {
         match &self.mode {
             EditorMode::Builder => self.builder.get().to_expr(),

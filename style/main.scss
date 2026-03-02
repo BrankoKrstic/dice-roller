@@ -80,6 +80,12 @@ a {
   gap: 1.2rem;
 }
 
+.page-tabs {
+  display: inline-flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .button-primary {
   min-height: 2.8rem;
   border-color: transparent;
@@ -112,4 +118,14 @@ a {
 
 .button-secondary-ghost {
   color: var(--text-muted);
+}
+
+.g-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-strong);
+  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  font: inherit;
 }

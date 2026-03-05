@@ -4,6 +4,7 @@ use libsql::{Builder, Connection, Database};
 use thiserror::Error;
 
 
+
 #[derive(Clone)]
 pub struct Db {
 	db: Arc<Database>

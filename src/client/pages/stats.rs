@@ -76,23 +76,23 @@ fn StatsResultPanel(
     };
     view! {
         <section class=style::stats_result aria-live="polite">
-            <Show when=move || running.get()>
-                <div class=style::stats_loader role="status" aria-label="Simulation in progress">
-                    <div class=style::stats_loader_spinner></div>
-                    <p class=style::stats_loader_text>"Crunching..."</p>
-                </div>
-            </Show>
 
             {move || {
                 if let Some(result) = result.get() {
                     view! {
                         <article class=style::stats_card>
-                            <h3>"Simulation Result"</h3>
-                            <p>{format!("{:.2}%", success_percent() * 100.0)}</p>
-                            <pre>
+                            <h3 class=style::stats_card_label>"Simulation Result"</h3>
+                            <p class=style::stats_card_total>
+                                {format!("{:.2}%", success_percent() * 100.0)}
+                            </p>
+                            <pre class=style::stats_card_breakdown>
                                 {format!(
                                     "Average damage per attempt: {:.3}\nAverage damage on success: {:.3}",
-                                    result.dmg as f32 / result.success_count as f32,
+                                    if result.success_count == 0 {
+                                        0.0
+                                    } else {
+                                        result.dmg as f32 / result.success_count as f32
+                                    },
                                     result.dmg as f32 / result.trials as f32,
                                 )}
                             </pre>
@@ -101,18 +101,36 @@ fn StatsResultPanel(
                         .into_any()
                 } else if let Some(message) = error.get() {
                     view! {
-                        <article class=style::stats_card>
-                            <h3>"Simulation Error"</h3>
-                            <p>{message}</p>
+                        <article class=format!("{} {}", style::stats_card, style::stats_card_error)>
+                            <h3 class=style::stats_card_label>"Simulation Error"</h3>
+                            <p class=style::stats_card_error_inner>{message}</p>
                         </article>
                     }
                         .into_any()
                 } else {
                     view! {
-                        <article class="result-card result-card--empty">
-                            <h3 class="result-card__label">"Ready"</h3>
-                            <p class="result-card__hint">"Configure rolls and run a simulation."</p>
-                        </article>
+                        <Show
+                            when=move || running.get()
+                            fallback=move || {
+                                view! {
+                                    <article class=style::stats_card>
+                                        <h3 class=style::stats_card_label>"Ready"</h3>
+                                        <p class=style::stats_card_hint>
+                                            "Configure rolls and run a simulation."
+                                        </p>
+                                    </article>
+                                }
+                            }
+                        >
+                            <div
+                                class=style::stats_loader
+                                role="status"
+                                aria-label="Simulation in progress"
+                            >
+                                <div class=style::stats_loader_spinner></div>
+                                <p class=style::stats_loader_text>"Crunching..."</p>
+                            </div>
+                        </Show>
                     }
                         .into_any()
                 }

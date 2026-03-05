@@ -211,7 +211,7 @@
   border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
 }
 
-.result-card-error {
+.result-card-error-inner {
   color: var(--danger);
   margin: 0.6rem 0 0;
   font-weight: 650;

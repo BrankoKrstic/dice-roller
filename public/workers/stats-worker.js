@@ -21,7 +21,7 @@ self.onmessage = async (event) => {
 
     postMessage(
       JSON.stringify({
-        type: 'rro',
+        type: 'Error',
         content: `Invalid request payload: ${error}`,
       }),
     );
@@ -31,7 +31,6 @@ self.onmessage = async (event) => {
   await wasmReady;
 
   try {
-    console.time("time")
     let rawResponse;
       rawResponse = worker_run_simulation(
         request.to_hit_expression,
@@ -40,8 +39,7 @@ self.onmessage = async (event) => {
         Number(request.trials),
 		    request.ac_mode
       );
-    postMessage(rawResponse),
-    console.timeEnd("time")
+    postMessage(rawResponse)
 
   } catch (error) {
     console.log(error)

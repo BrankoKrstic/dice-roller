@@ -65,9 +65,7 @@ impl DiceCounts {
         }
     }
     pub fn add_dice(&mut self, i: usize) {
-        if self.dice[i] < i16::MAX {
-            self.dice[i] += 1;
-        }
+        self.dice[i] = self.dice[i].saturating_add(1);
     }
     pub fn subtract_dice(&mut self, i: usize) {
         if self.dice[i] > i16::MIN + 1 {
@@ -97,7 +95,7 @@ impl RollBuilder {
     fn add_dice(&mut self, i: usize) {
         match &mut self.roll {
             RollType::Counts(dice_counts) => dice_counts.add_dice(i),
-            x => {
+            _ => {
                 let mut new_dice_counts = DiceCounts::new();
                 new_dice_counts.add_dice(i);
                 self.roll = RollType::Counts(new_dice_counts);
@@ -107,7 +105,7 @@ impl RollBuilder {
     fn sub_dice(&mut self, i: usize) {
         match &mut self.roll {
             RollType::Counts(dice_counts) => dice_counts.subtract_dice(i),
-            x => {
+            _ => {
                 let mut new_dice_counts = DiceCounts::new();
                 new_dice_counts.subtract_dice(i);
                 self.roll = RollType::Counts(new_dice_counts);
@@ -309,13 +307,6 @@ impl Default for EditorState {
     }
 }
 impl EditorState {
-    pub fn new(mode: EditorMode, expr: String, builder: RollBuilder) -> Self {
-        Self {
-            mode,
-            expr: RwSignal::new(expr),
-            builder: RwSignal::new(builder),
-        }
-    }
     pub fn get_expr(&self) -> String {
         match &self.mode {
             EditorMode::Builder => self.builder.get().to_expr(),
@@ -353,9 +344,9 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
         <div>
             {move || {
                 if matches!(state.get().mode, EditorMode::Builder) {
-                    view! { <BuilderEditor builder=state.get().builder.clone() /> }.into_any()
+                    view! { <BuilderEditor builder=state.get().builder /> }.into_any()
                 } else {
-                    view! { <ExpressionEditor expr=state.get().expr.clone() /> }.into_any()
+                    view! { <ExpressionEditor expr=state.get().expr /> }.into_any()
                 }
             }}
         </div>
@@ -373,7 +364,6 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
 
 #[component]
 pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
-    let mode = EditorMode::default();
     let state = RwSignal::new(EditorState::default());
 
     view! {

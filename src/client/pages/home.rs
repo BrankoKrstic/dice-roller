@@ -4,7 +4,6 @@ use leptos::prelude::*;
 use crate::{
     client::{
         components::{roll_editor::RollEditor, roll_feed::RollFeed},
-        context::theme::{toggle_theme, use_theme_context, Theme},
         utils::roll_feed::{DiceRoll, DiceRollFeed},
     },
     dsl::parse_and_roll,
@@ -13,9 +12,7 @@ use crate::{
 
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
-    let theme = use_theme_context();
     let feed = RwSignal::new(DiceRollFeed::new());
-    let (loading_more, set_loading_more) = signal(false);
 
     let load_older_rolls = || {};
 

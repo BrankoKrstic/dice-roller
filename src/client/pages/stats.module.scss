@@ -45,7 +45,7 @@
 
 .stats-editor-block-inner {
   display: grid;
-  justify_items: start;
+  justify-content: start;
   gap: 0.65rem;
 }
 
@@ -114,8 +114,6 @@
     transform: rotate(360deg);
   }
 }
-
-
 
 .stats-card {
   border: 1px solid var(--border);

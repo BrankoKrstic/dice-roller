@@ -21,10 +21,8 @@ self.onmessage = async (event) => {
 
     postMessage(
       JSON.stringify({
-        id: 0,
-        ok: false,
-        result: null,
-        error: `Invalid request payload: ${error}`,
+        type: 'rro',
+        content: `Invalid request payload: ${error}`,
       }),
     );
     return;
@@ -33,6 +31,7 @@ self.onmessage = async (event) => {
   await wasmReady;
 
   try {
+    console.time("time")
     let rawResponse;
       rawResponse = worker_run_simulation(
         request.to_hit_expression,
@@ -41,25 +40,13 @@ self.onmessage = async (event) => {
         Number(request.trials),
 		    request.ac_mode
       );
-    const parsed = JSON.parse(rawResponse);
-    console.log(request, rawResponse, parsed)
-    postMessage(
-      JSON.stringify({
-        id: request.id ?? 0,
-        ok: Boolean(parsed.ok),
-        result: parsed.result ?? null,
-        error: parsed.error ?? null,
-      }),
-    );
+    postMessage(rawResponse),
+    console.timeEnd("time")
+
   } catch (error) {
     console.log(error)
     postMessage(
-      JSON.stringify({
-        id: request.id ?? 0,
-        ok: false,
-        result: null,
-        error,
-      }),
+      JSON.stringify({ type: "Error", content: `An error occurred: ${error}`}),
     );
   }
 }

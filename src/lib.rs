@@ -19,7 +19,7 @@ pub struct ChanceResult {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "content")]
 enum WorkerSimulationResponse {
     Result(ChanceResult),
     Error(String),

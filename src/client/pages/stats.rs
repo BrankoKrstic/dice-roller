@@ -9,7 +9,8 @@ use crate::{
 use wasm_bindgen::{JsCast, JsValue};
 
 stylance::import_style!(style, "stats.module.scss");
-use web_sys::{MessageEvent, Worker, WorkerOptions};
+
+use web_sys::{MessageEvent, Worker};
 
 pub struct ChanceCalculatorResult {
     trials: u32,
@@ -99,6 +100,66 @@ fn spawn_chance_worker(
     on_message.forget();
 
     worker
+}
+
+#[component]
+fn StatsResultPanel(
+    running: ReadSignal<bool>,
+    result: ReadSignal<Option<ChanceResult>>,
+    error: ReadSignal<Option<String>>,
+) -> impl IntoView {
+    let success_percent = move || {
+        if let Some(res) = result.get() {
+            res.success_count as f32 / res.trials as f32
+        } else {
+            0.0
+        }
+    };
+    view! {
+        <section class=style::stats_result aria-live="polite">
+            <Show when=move || running.get()>
+                <div class=style::stats_loader role="status" aria-label="Simulation in progress">
+                    <div class=style::stats_loader_spinner></div>
+                    <p class=style::stats_loader_text>"Crunching..."</p>
+                </div>
+            </Show>
+
+            {move || {
+                if let Some(result) = result.get() {
+                    view! {
+                        <article class=style::stats_card>
+                            <h3>"Simulation Result"</h3>
+                            <p>{format!("{:.2}%", success_percent() * 100.0)}</p>
+                            <pre>
+                                {format!(
+                                    "Average damage per attempt: {:.3}\nAverage damage on success: {:.3}",
+                                    result.dmg as f32 / result.success_count as f32,
+                                    result.dmg as f32 / result.trials as f32,
+                                )}
+                            </pre>
+                        </article>
+                    }
+                        .into_any()
+                } else if let Some(message) = error.get() {
+                    view! {
+                        <article class=style::stats_card>
+                            <h3>"Simulation Error"</h3>
+                            <p>{message}</p>
+                        </article>
+                    }
+                        .into_any()
+                } else {
+                    view! {
+                        <article class="result-card result-card--empty">
+                            <h3 class="result-card__label">"Ready"</h3>
+                            <p class="result-card__hint">"Configure rolls and run a simulation."</p>
+                        </article>
+                    }
+                        .into_any()
+                }
+            }}
+        </section>
+    }
 }
 
 #[component]
@@ -236,6 +297,7 @@ pub fn StatsPage() -> impl IntoView {
                     {move || if running.get() { "Running..." } else { "Run Simulation" }}
                 </button>
 
+                <StatsResultPanel running=running result=result error=error />
             </section>
 
         </div>

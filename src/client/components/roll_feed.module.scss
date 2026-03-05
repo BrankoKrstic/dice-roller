@@ -131,38 +131,6 @@
   gap: 0.5rem;
 }
 
-.chance-loader {
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  background: var(--surface-muted);
-  padding: 0.7rem 0.75rem;
-  display: grid;
-  place-items: center;
-  gap: 0.65rem;
-}
-
-.chance-loader-text {
-  margin: 0;
-  font-size: 0.88rem;
-  color: var(--text-muted);
-  font-weight: 650;
-}
-
-.chance-loader-spinner {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  border: 0.26rem solid color-mix(in srgb, var(--accent) 22%, transparent);
-  border-top-color: var(--accent);
-  animation: chance-spin 0.8s linear infinite;
-}
-
-@keyframes chance-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .rooms-card {
   border-radius: 1rem;
   border: 1px solid var(--border);
@@ -259,7 +227,7 @@
     padding: 0.9rem;
   }
 
-  .chance-editor-grid {
+  .stats-editor-grid {
     grid-template-columns: 1fr;
   }
 

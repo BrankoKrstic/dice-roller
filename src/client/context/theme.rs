@@ -2,9 +2,10 @@ use leptos::{prelude::*, server::codee::string::JsonSerdeCodec};
 use leptos_use::storage::{use_local_storage, use_local_storage_with_options, UseStorageOptions};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Theme {
     Light,
+    #[default]
     Dark,
 }
 
@@ -14,12 +15,6 @@ impl Theme {
             Theme::Light => "light",
             Theme::Dark => "dark",
         }
-    }
-}
-
-impl Default for Theme {
-    fn default() -> Self {
-        Theme::Dark
     }
 }
 

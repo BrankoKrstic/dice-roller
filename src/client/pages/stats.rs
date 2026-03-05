@@ -1,7 +1,15 @@
 use leptos::prelude::*;
 
-use crate::client::components::roll_editor::{EditorComponent, EditorState};
+use crate::{
+    client::components::roll_editor::{EditorComponent, EditorState},
+    ChanceResult, WorkerSimulationRequest, WorkerSimulationResponse,
+};
+
+#[cfg(feature = "hydrate")]
+use wasm_bindgen::{JsCast, JsValue};
+
 stylance::import_style!(style, "stats.module.scss");
+use web_sys::{MessageEvent, Worker, WorkerOptions};
 
 pub struct ChanceCalculatorResult {
     trials: u32,
@@ -50,6 +58,49 @@ enum CalculatorVariant {
     Dc,
 }
 
+#[cfg(feature = "hydrate")]
+fn spawn_chance_worker(
+    set_result: WriteSignal<Option<ChanceResult>>,
+    set_error: WriteSignal<Option<String>>,
+    set_running: WriteSignal<bool>,
+) -> Worker {
+    let options = web_sys::WorkerOptions::new();
+    options.set_type(web_sys::WorkerType::Module);
+
+    let worker = web_sys::Worker::new_with_options("/workers/stats-worker.js", &options)
+        .expect("Worker should be there");
+
+    let on_message = wasm_bindgen::closure::Closure::<dyn FnMut(MessageEvent)>::new(
+        move |message: MessageEvent| {
+            let response = serde_json::from_str::<WorkerSimulationResponse>(
+                &message.data().as_string().unwrap(),
+            );
+
+            let response = match response {
+                Ok(result) => result,
+                Err(e) => {
+                    set_error.set(Some(format!("Failed to parse result {}", e)));
+                    set_running.set(false);
+                    return;
+                }
+            };
+
+            match response {
+                WorkerSimulationResponse::Result(chance_result) => {
+                    set_result.set(Some(chance_result))
+                }
+                WorkerSimulationResponse::Error(err) => set_error.set(Some(err)),
+            }
+            set_running.set(false);
+        },
+    );
+
+    worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+    on_message.forget();
+
+    worker
+}
+
 #[component]
 pub fn StatsPage() -> impl IntoView {
     let (variant, set_variant) = signal(CalculatorVariant::Ac);
@@ -57,10 +108,33 @@ pub fn StatsPage() -> impl IntoView {
     let to_hit_editor = RwSignal::new(EditorState::default());
     let dmg_editor = RwSignal::new(EditorState::default());
     let (running, set_running) = signal(false);
+    let (error, set_error) = signal::<Option<String>>(None);
+    let (result, set_result) = signal::<Option<ChanceResult>>(None);
 
+    #[cfg(feature = "hydrate")]
+    let worker = spawn_chance_worker(set_result, set_error, set_running);
+
+    #[cfg(feature = "hydrate")]
     let run_simulation = move |_| {
         set_running.set(true);
+        set_result.set(None);
+        set_error.set(None);
+        worker
+            .post_message(&JsValue::from_str(
+                &serde_json::to_string(&WorkerSimulationRequest {
+                    to_hit_expression: to_hit_editor.get().get_expr(),
+                    damage_expression: dmg_editor.get().get_expr(),
+                    target: target.get(),
+                    trials: 1_000_000,
+                    ac_mode: matches!(variant.get(), CalculatorVariant::Ac),
+                })
+                .unwrap(),
+            ))
+            .expect("Can post message to worker");
     };
+
+    #[cfg(not(feature = "hydrate"))]
+    let run_simulation = |_| {};
 
     view! {
         <div class="page">

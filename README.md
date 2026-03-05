@@ -1,91 +1,129 @@
-<picture>
-    <source srcset="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_Solid_White.svg" media="(prefers-color-scheme: dark)">
-    <img src="https://raw.githubusercontent.com/leptos-rs/leptos/main/docs/logos/Leptos_logo_RGB.svg" alt="Leptos Logo">
-</picture>
+# dice-roller
 
-# Leptos Axum Starter Template
+A Leptos + Axum web app for dice expression rolling with a custom dice DSL.
 
-This is a template for use with the [Leptos](https://github.com/leptos-rs/leptos) web framework and the [cargo-leptos](https://github.com/akesson/cargo-leptos) tool using [Axum](https://github.com/tokio-rs/axum).
+## Current status
 
-## Creating your template repo
+Implemented so far:
+- Dice roller UI with two input modes (builder and expression)
+- Builder mode includes clickable dice cards and adv/dis shortcuts
+- Expression mode supports free-form DSL input
+- Local roll feed with timestamp, total, expression, and roll breakdown
+- `/chance` page with calculator UI controls (simulation backend not wired yet)
+- Full lexer/parser/interpreter pipeline for the dice DSL with unit tests
+- SSR server + hydration setup via `cargo-leptos`
 
-If you don't have `cargo-leptos` installed you can install it with
+Not implemented yet:
+- Server API endpoints (files exist but are currently empty)
+- Persistent storage / rooms / auth pages (files exist but are currently placeholders)
+- Real-time multiplayer roll feed
+
+## Tech stack
+
+- Rust 2024
+- Leptos 0.8 (`leptos`, `leptos_router`, `leptos_meta`, `leptos_axum`)
+- Axum 0.8 (SSR server)
+- Stylance + SCSS modules (component styling)
+- `cargo-leptos` for SSR/hydrate build flow
+- Playwright scaffold for end-to-end tests
+
+## Routes
+
+- `/` -> Roller page
+- `/chance` -> Chance calculator page (UI scaffold)
+- Any other path -> Not found page
+
+## Dice DSL (supported today)
+
+Core:
+- Arithmetic: `+ - * /` and parentheses
+- Dice: `d4 d6 d8 d10 d12 d20 d% dF`
+- Implicit one die: `d20` == `1d20`
+
+Modifiers (implemented in parser/interpreter):
+- `adv`, `dis` (d20 only, single-die expressions)
+- `k` (keep) and `d` (drop) with conditions (`kh2`, `dl1`, `d>=5`, etc.)
+- `r` (reroll), optional `timesN` cap (`r<=2times3`)
+- `ex` (explode), optional `timesN` cap (`ex=6times2`)
+- `u` (unique)
+- `c` (count), with optional condition (`c>=5`)
+- `s` / `sa` (sort descending / ascending)
+- `minN`, `maxN`
+
+Examples:
+- `2d10 + 1d6 + 5`
+- `4d6kh3`
+- `2d6r<=3times2 + 1`
+- `d20adv + 7`
+- `4dFmin0max1`
+
+## Prerequisites
+
+- Rust toolchain (`cargo`, `rustup`)
+- `cargo-leptos`
+- `stylance-cli`
+
+Install helper tools:
 
 ```bash
 cargo install cargo-leptos --locked
+cargo install stylance-cli
 ```
 
-Then run
-```bash
-cargo leptos new --git https://github.com/leptos-rs/start-axum
-```
+## Development
 
-to generate a new project template.
+Start CSS + Leptos watch mode:
 
 ```bash
-cd dice-roller
+./watch.sh
 ```
 
-to go to your newly created project.
-Feel free to explore the project structure, but the best place to start with your application code is in `src/app.rs`.
-Additionally, Cargo.toml may need updating as new versions of the dependencies are released, especially if things are not working after a `cargo update`.
+This runs:
+- `stylance --watch .`
+- `cargo leptos watch`
 
-## Running your project
+Default local server address comes from `Cargo.toml` metadata:
+- `127.0.0.1:3000`
+
+## Tests
+
+Run Rust tests:
 
 ```bash
-cargo leptos watch
+cargo test
 ```
 
-## Installing Additional Tools
+Current status in this workspace:
+- 31 Rust tests passing (DSL lexer/parser/interpreter coverage)
 
-By default, `cargo-leptos` uses `nightly` Rust, `cargo-generate`, and `sass`. If you run into any trouble, you may need to install one or more of these tools.
-
-1. `rustup toolchain install nightly --allow-downgrade` - make sure you have Rust nightly
-2. `rustup target add wasm32-unknown-unknown` - add the ability to compile Rust to WebAssembly
-3. `cargo install cargo-generate` - install `cargo-generate` binary (should be installed automatically in future)
-4. `npm install -g sass` - install `dart-sass` (should be optional in future
-5. Run `npm install` in end2end subdirectory before test
-
-## Compiling for Release
-```bash
-cargo leptos build --release
-```
-
-Will generate your server binary in target/release and your site package in target/site
-
-## Testing Your Project
-```bash
-cargo leptos end-to-end
-```
+## Production build
 
 ```bash
-cargo leptos end-to-end --release
+./build.sh
 ```
 
-Cargo-leptos uses Playwright as the end-to-end test tool.
-Tests are located in end2end/tests directory.
+This runs:
+- `stylance .`
+- `cargo leptos build --release`
 
-## Executing a Server on a Remote Machine Without the Toolchain
-After running a `cargo leptos build --release` the minimum files needed are:
+Artifacts:
+- Server binary in `target/release/`
+- Site assets in `target/site/`
 
-1. The server binary located in `target/server/release`
-2. The `site` directory and all files within located in `target/site`
+## Deploying without Rust toolchain
 
-Copy these files to your remote server. The directory structure should be:
-```text
-dice-roller
-site/
-```
-Set the following environment variables (updating for your project as needed):
-```sh
+After `./build.sh`, copy:
+- server binary (from `target/release/`)
+- `target/site/` directory
+
+Expected runtime env vars (adjust as needed):
+
+```bash
 export LEPTOS_OUTPUT_NAME="dice-roller"
 export LEPTOS_SITE_ROOT="site"
 export LEPTOS_SITE_PKG_DIR="pkg"
 export LEPTOS_SITE_ADDR="127.0.0.1:3000"
 export LEPTOS_RELOAD_PORT="3001"
 ```
-Finally, run the server binary.
 
-## Licensing
-
-This template itself is released under the Unlicense. You should replace the LICENSE for your own application with an appropriate license if you plan to release it publicly.
+Then run the server binary.

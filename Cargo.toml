@@ -23,8 +23,10 @@ serde = { version = "1.0.228", features = ["derive"] }
 stylance = "0.7.4"
 chrono = "0.4.44"
 serde_json = "1.0.149"
-
+libsql = { version = "0.9.29", optional = true }
 web-sys = { version = "0.3.85", features = ["Worker", "MessageEvent", "WorkerType", "WorkerOptions"] }
+argon2 = "0.5.3"
+regex = { version = "1.12.3", optional = true }
 
 
 [features]
@@ -38,6 +40,8 @@ hydrate = [
 ssr = [
     "dep:axum",
     "dep:tokio",
+    "dep:libsql",
+    "dep:regex",
     "dep:leptos_axum",
     "leptos/ssr",
     "leptos_meta/ssr",
@@ -45,6 +49,7 @@ ssr = [
     "leptos-use/ssr",
     "leptos-use/axum"
 ]
+regex = ["dep:regex"]
 
 # Defines a size-optimized profile for the WASM bundle in release mode
 [profile.wasm-release]

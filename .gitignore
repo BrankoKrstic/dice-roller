@@ -10,3 +10,4 @@ target/
 *.pdb
 
 style/bundle.scss
+.env

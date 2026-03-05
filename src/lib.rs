@@ -1,6 +1,7 @@
 pub mod app;
 pub mod client;
 pub mod dsl;
+pub mod server;
 pub mod shared;
 
 use serde::{Deserialize, Serialize};

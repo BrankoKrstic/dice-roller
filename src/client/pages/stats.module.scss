@@ -1,9 +1,3 @@
-.stats-tabs {
-  display: inline-flex;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-}
-
 .stats-card {
   display: grid;
   gap: 1rem;
@@ -55,17 +49,6 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-muted);
-}
-
-.stats-expression-preview {
-  margin: 0;
-  border: 1px dashed var(--border);
-  border-radius: 0.65rem;
-  background: var(--surface-muted);
-  padding: 0.55rem 0.65rem;
-  font-family: var(--font-mono);
-  font-size: 0.86rem;
-  overflow-x: auto;
 }
 
 .stats-result {
@@ -136,17 +119,6 @@
   font-size: clamp(2rem, 5.5vw, 3.8rem);
   line-height: 1;
   font-weight: 900;
-}
-
-.stats-card-expression {
-  margin: 0.7rem 0 0;
-  font-size: 0.95rem;
-  color: var(--text-muted);
-}
-
-.stats-card-expression code {
-  font-family: var(--font-mono);
-  color: var(--text);
 }
 
 .stats-card-breakdown {

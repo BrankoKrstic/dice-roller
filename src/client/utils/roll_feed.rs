@@ -9,7 +9,7 @@ pub struct DiceRoll {
     pub breakdown: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct DiceRollFeed {
     pub rolls: Vec<DiceRoll>,
     pub has_more: bool,

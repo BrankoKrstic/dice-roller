@@ -68,12 +68,12 @@ pub fn run_trials(
         dmg: 0,
     };
 
-    let mut to_hit_ast = Parser::new(&to_hit_expression).parse()?;
-    let mut dmg_ast = Parser::new(&damage_expression).parse()?;
+    let to_hit_ast = Parser::new(&to_hit_expression).parse()?;
+    let dmg_ast = Parser::new(&damage_expression).parse()?;
     let mut interpreter = Interpreter::new(CryptoDiceRng::new());
     while result.trials < trials {
         let roll = interpreter.eval_ast(&to_hit_ast)?.total();
-        let mut is_hit = match is_ac_variant {
+        let is_hit = match is_ac_variant {
             true => roll >= target,
             false => roll < target,
         };

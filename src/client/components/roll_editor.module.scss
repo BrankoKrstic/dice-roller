@@ -31,8 +31,7 @@
   color: var(--text);
 }
 
-.roll-editor-panel,
-.expression-editor-panel {
+.roll-editor-panel {
   display: grid;
   gap: 0.95rem;
 }
@@ -71,10 +70,7 @@
   gap: 0.5rem;
 }
 
-.die-card-step,
-.quick-action,
-.roll-button,
-.chip {
+.die-card-step {
   border: 1px solid var(--border);
   border-radius: 0.6rem;
   background: var(--surface-strong);
@@ -95,11 +91,6 @@
   color: var(--text-muted);
 }
 
-.dice-panel-controls {
-  display: grid;
-  gap: 0.45rem;
-}
-
 .roll-editor-label {
   font-size: 0.86rem;
   font-weight: 700;
@@ -108,7 +99,6 @@
   text-transform: uppercase;
 }
 
-.flat-modifier-input,
 .expression-editor-input {
   width: 100%;
   border: 1px solid var(--border);
@@ -124,29 +114,15 @@
   resize: vertical;
 }
 
-.quick-actions,
-.expression-editor-chip-row {
+.quick-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
 }
 
-.quick-action,
-.chip {
-  min-height: 2.2rem;
-  padding: 0 0.8rem;
-  font-weight: 650;
-}
-
-.quick-action:hover,
-.chip:hover,
 .die-card-step:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
-}
-
-.quick-action-ghost {
-  color: var(--text-muted);
 }
 
 .expression-editor-preview {

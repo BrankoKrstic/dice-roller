@@ -1,6 +1,7 @@
 use std::env;
 
 use axum::{Json, http::StatusCode};
+use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
@@ -173,7 +174,7 @@ impl AuthService {
         let conn = self.db.connection()?;
 
         let result = conn.execute(
-            "INSERT INTO users (username, email, password, created_at VALUES (?1, ?2, ?3, unixepoch('now'))",
+            "INSERT INTO users (username, email, password, created_at) VALUES (?1, ?2, ?3, unixepoch('now'))",
             (payload.user_name.as_str(), payload.email.as_str(), payload.password.as_str())
         ).await;
 
@@ -196,8 +197,8 @@ impl AuthService {
 
         let id = UserId::new(row.get::<i64>(0)?);
         let username = Username::new(row.get::<String>(1)?);
-        let email = Email::new(row.get::<String>(1)?);
-        let password = PasswordHashed::new(row.get::<String>(1)?);
+        let email = Email::new(row.get::<String>(2)?);
+        let password = PasswordHashed::new(row.get::<String>(3)?);
 
         Ok(Some(ExistingUser::new(id, email, username, password)))
     }
@@ -262,13 +263,8 @@ impl AuthService {
             .build()
     }
 
-    pub fn clear_auth_cookie(&self) -> Cookie<'static> {
-        Cookie::build((AUTH_COOKIE_NAME.to_string(), String::new()))
-            .path("/")
-            .http_only(true)
-            .same_site(SameSite::Lax)
-            .secure(self.cookie_secure)
-            .build()
+    pub fn clear_auth_cookie(&self, jar: CookieJar) -> CookieJar {
+        jar.remove(Cookie::from(AUTH_COOKIE_NAME))
     }
 }
 

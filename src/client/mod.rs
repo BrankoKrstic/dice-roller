@@ -3,7 +3,7 @@ pub mod context;
 pub mod pages;
 pub mod utils;
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, Stylesheet, Title};
+use leptos_meta::{Stylesheet, Title, provide_meta_context};
 
 use crate::client::{
     components::nav_bar::NavBar,

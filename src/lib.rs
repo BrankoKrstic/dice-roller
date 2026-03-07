@@ -8,9 +8,9 @@ pub mod shared;
 use serde::{Deserialize, Serialize};
 
 use crate::dsl::{
+    RollError,
     interpreter::{CryptoDiceRng, Interpreter},
     parser::Parser,
-    RollError,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

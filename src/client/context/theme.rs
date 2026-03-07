@@ -1,5 +1,5 @@
 use leptos::{prelude::*, server::codee::string::JsonSerdeCodec};
-use leptos_use::storage::{use_local_storage, use_local_storage_with_options, UseStorageOptions};
+use leptos_use::storage::{UseStorageOptions, use_local_storage, use_local_storage_with_options};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]

@@ -3,13 +3,10 @@ use std::{env, sync::Arc};
 use libsql::{Builder, Connection, Database};
 use thiserror::Error;
 
-
-
 #[derive(Clone)]
 pub struct Db {
-	db: Arc<Database>
+    db: Arc<Database>,
 }
-
 
 fn is_remote_database_url(value: &str) -> bool {
     let normalized = value.trim().to_ascii_lowercase();
@@ -18,7 +15,6 @@ fn is_remote_database_url(value: &str) -> bool {
         || normalized.starts_with("http://")
         || normalized.starts_with("wss://")
 }
-
 
 #[derive(Debug, Error)]
 pub enum DbError {
@@ -37,7 +33,7 @@ pub enum DbError {
 }
 
 impl Db {
-	pub async fn from_env() -> Result<Self, DbError> {
+    pub async fn from_env() -> Result<Self, DbError> {
         let db_url = env::var("TURSO_DATABASE_URL")
             .map_err(|_| DbError::MissingEnv("TURSO_DATABASE_URL"))?;
 
@@ -55,16 +51,13 @@ impl Db {
                 .map_err(|error| DbError::Database(error.to_string()))?
         };
 
-        let db = Self {
-            db: Arc::new(db),
-        };
+        let db = Self { db: Arc::new(db) };
 
         Ok(db)
     }
-	pub fn connection(&self) -> Result<Connection, DbError> {
+    pub fn connection(&self) -> Result<Connection, DbError> {
         self.db
             .connect()
             .map_err(|error| DbError::Database(error.to_string()))
     }
-    
 }

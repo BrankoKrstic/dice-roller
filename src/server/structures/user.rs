@@ -1,29 +1,81 @@
 use std::{f32::consts::E, fmt::Display};
 
 use argon2::{
-    password_hash::{rand_core::OsRng, SaltString},
-    Argon2, PasswordHasher,
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+    password_hash::{SaltString, rand_core::OsRng},
 };
 use leptos::html::P;
 use regex::Regex;
 use serde::{
-    de::{self, Error, Visitor},
     Deserialize, Deserializer,
+    de::{self, Error, Visitor},
 };
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Email(String);
 
+impl Email {
+    pub fn new(val: String) -> Self {
+        Self(val)
+    }
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserName(String);
+pub struct Username(String);
+
+impl Username {
+    pub fn new(val: String) -> Self {
+        Self(val)
+    }
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PasswordHashed(String);
 
+impl PasswordHashed {
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub fn verify(&self, password: &str) -> Result<(), PasswordError> {
+        Argon2::default()
+            .verify_password(
+                password.as_bytes(),
+                &PasswordHash::new(&self.0)
+                    .map_err(|_| PasswordError("Invalid hash".to_string()))?,
+            )
+            .map_err(|_| PasswordError("Invalid password".to_string()))
+    }
+    pub fn from_unhashed(password: &str) -> Result<Self, PasswordError> {
+        let salt = SaltString::generate(&mut OsRng);
+        Argon2::default()
+            .hash_password(password.as_bytes(), &salt)
+            .map(|hash| Self(hash.to_string()))
+            .map_err(|error| PasswordError(error.to_string()))
+    }
+    pub fn new(password: String) -> Self {
+        Self(password)
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("Password error {0}")]
-struct PasswordError(String);
+pub struct PasswordError(String);
 
 #[derive(Debug, Error)]
 enum DeserializeError {
@@ -37,19 +89,6 @@ impl de::Error for DeserializeError {
     }
 }
 
-impl PasswordHashed {
-    pub fn from_unhashed(password: &str) -> Result<Self, PasswordError> {
-        let salt = SaltString::generate(&mut OsRng);
-        Argon2::default()
-            .hash_password(password.as_bytes(), &salt)
-            .map(|hash| Self(hash.to_string()))
-            .map_err(|error| PasswordError(error.to_string()))
-    }
-    pub fn new(password: String) -> Self {
-        Self(password)
-    }
-}
-
 fn deserialize_password<'de, D>(deserializer: D) -> Result<PasswordHashed, D::Error>
 where
     D: Deserializer<'de>,
@@ -58,7 +97,7 @@ where
     PasswordHashed::from_unhashed(s).map_err(de::Error::custom)
 }
 
-fn deserialize_username<'de, D>(deserializer: D) -> Result<UserName, D::Error>
+fn deserialize_username<'de, D>(deserializer: D) -> Result<Username, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -71,7 +110,7 @@ where
             &"A string between 2 and 64 characters long",
         ))
     } else {
-        Ok(UserName(s.to_string()))
+        Ok(Username(s.to_string()))
     }
 }
 
@@ -92,22 +131,41 @@ where
         .map(|_| Email(s.to_string()))
 }
 
+pub struct UserId(i64);
+
+impl UserId {
+    pub fn new(id: i64) -> Self {
+        Self(id)
+    }
+    pub fn into_inner(self) -> i64 {
+        self.0
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct User {
     #[serde(deserialize_with = "deserialize_email")]
-    email: Email,
+    pub email: Email,
     #[serde(deserialize_with = "deserialize_username")]
-    user_name: UserName,
+    pub user_name: Username,
     #[serde(deserialize_with = "deserialize_password")]
-    password: PasswordHashed,
+    pub password: PasswordHashed,
 }
 
-impl User {
-    pub fn new(email: String, user_name: String, password: String) -> Self {
+pub struct ExistingUser {
+    pub id: UserId,
+    pub email: Email,
+    pub user_name: Username,
+    pub password: PasswordHashed,
+}
+
+impl ExistingUser {
+    pub fn new(id: UserId, email: Email, user_name: Username, password: PasswordHashed) -> Self {
         Self {
-            email: Email(email),
-            user_name: UserName(user_name),
-            password: PasswordHashed::new(password),
+            id,
+            email,
+            user_name,
+            password,
         }
     }
 }

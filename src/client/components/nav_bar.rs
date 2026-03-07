@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::client::context::theme::{toggle_theme, use_theme_context, Theme};
+use crate::client::context::theme::{Theme, toggle_theme, use_theme_context};
 
 stylance::import_style!(style, "nav_bar.module.scss");
 

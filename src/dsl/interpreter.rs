@@ -1,4 +1,4 @@
-use rand::{rngs::ThreadRng, RngExt};
+use rand::{RngExt, rngs::ThreadRng};
 use thiserror::Error;
 
 use crate::dsl::parser::{
@@ -557,9 +557,11 @@ mod tests {
     fn rejects_division_by_zero() {
         let rng = StubRng::new(vec![]);
         let error = stub_roll("1 / 0", rng).expect_err("roll should fail");
-        assert!(error
-            .to_string()
-            .to_lowercase()
-            .contains("division by zero"));
+        assert!(
+            error
+                .to_string()
+                .to_lowercase()
+                .contains("division by zero")
+        );
     }
 }

@@ -249,7 +249,7 @@ impl<'input> Iterator for Lexer<'input> {
                             return Some(Err(LexerError::ParseError {
                                 token: digits.to_string(),
                                 span: Span::new(c_at, c_to),
-                            }))
+                            }));
                         }
                     };
                     self.rest = &self.rest[first_non_digit..];
@@ -286,7 +286,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexerError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{lex, TokenKind};
+    use super::{TokenKind, lex};
 
     #[test]
     fn lexes_basic_expression() {
@@ -383,9 +383,11 @@ mod tests {
     #[test]
     fn rejects_unknown_identifier() {
         let error = lex("1d6foo").expect_err("lex should fail");
-        assert!(error
-            .to_string()
-            .to_lowercase()
-            .contains("unknown identifier"));
+        assert!(
+            error
+                .to_string()
+                .to_lowercase()
+                .contains("unknown identifier")
+        );
     }
 }

@@ -3,16 +3,20 @@ pub mod context;
 pub mod pages;
 pub mod utils;
 use leptos::prelude::*;
-use leptos_meta::{Stylesheet, Title, provide_meta_context};
+use leptos_meta::{provide_meta_context, Stylesheet, Title};
 
 use crate::client::{
     components::nav_bar::NavBar,
-    context::theme::{provide_theme_context, use_theme_context},
+    context::{
+        auth::provide_auth_context,
+        theme::{provide_theme_context, use_theme_context},
+    },
 };
 
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    provide_auth_context();
     provide_theme_context();
     let theme_context = use_theme_context();
     view! {

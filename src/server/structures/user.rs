@@ -1,46 +1,18 @@
 use std::{f32::consts::E, fmt::Display};
 
 use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-    password_hash::{SaltString, rand_core::OsRng},
 };
 use leptos::html::P;
 use regex::Regex;
 use serde::{
-    Deserialize, Deserializer,
     de::{self, Error, Visitor},
+    Deserialize, Deserializer,
 };
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Email(String);
-
-impl Email {
-    pub fn new(val: String) -> Self {
-        Self(val)
-    }
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Username(String);
-
-impl Username {
-    pub fn new(val: String) -> Self {
-        Self(val)
-    }
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
+use crate::shared::data::user::{Email, UserId, Username};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PasswordHashed(String);
@@ -110,7 +82,7 @@ where
             &"A string between 2 and 64 characters long",
         ))
     } else {
-        Ok(Username(s.to_string()))
+        Ok(Username::new(s.to_string()))
     }
 }
 
@@ -128,18 +100,7 @@ where
 
     rx.captures(s)
         .ok_or(de::Error::custom("Invalid password"))
-        .map(|_| Email(s.to_string()))
-}
-
-pub struct UserId(i64);
-
-impl UserId {
-    pub fn new(id: i64) -> Self {
-        Self(id)
-    }
-    pub fn into_inner(self) -> i64 {
-        self.0
-    }
+        .map(|_| Email::new(s.to_string()))
 }
 
 #[derive(Debug, Deserialize)]

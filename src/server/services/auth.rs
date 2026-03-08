@@ -11,8 +11,9 @@ use thiserror::Error;
 
 use crate::server::db::{Db, DbError};
 use crate::server::structures::user::{
-    Email, ExistingUser, PasswordHashed, User, UserId, Username,
+ ExistingUser, PasswordHashed, User
 };
+use crate::shared::data::user::{AuthUser, Email, UserId, Username};
 
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -53,11 +54,6 @@ struct AuthErrorResponse {
     error: String,
 }
 
-pub struct AuthUser {
-    id: UserId,
-    username: Username,
-    email: Email,
-}
 
 impl From<AuthError> for (StatusCode, Json<AuthErrorResponse>) {
     fn from(value: AuthError) -> Self {

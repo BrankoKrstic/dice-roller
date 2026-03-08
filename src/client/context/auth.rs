@@ -1,6 +1,12 @@
 use leptos::prelude::*;
+use serde::Deserialize;
 
-use crate::shared::data::user::AuthUser;
+#[derive(Deserialize)]
+pub struct AuthUser {
+    id: i64,
+    username: String,
+    email: String,
+}
 
 #[derive(Clone)]
 pub(crate) struct AuthContext {

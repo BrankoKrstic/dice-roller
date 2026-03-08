@@ -1,11 +1,12 @@
 
 use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
-use serde::{Serialize};
+use serde::Serialize;
 use web_sys::SubmitEvent;
 
-use crate::{client::context::auth::use_auth_context, shared::data::user::AuthUser};
+use crate::client::context::auth::{AuthUser, use_auth_context};
 
+stylance::import_style!(style, "auth.module.scss");
 
 #[derive(Serialize)]
 struct RegisterRequest {
@@ -15,7 +16,7 @@ struct RegisterRequest {
 }
 
 
-pub(crate) async fn register_user_request(payload: RegisterRequest) -> Result<AuthUser, String> {
+async fn register_user_request(payload: RegisterRequest) -> Result<AuthUser, String> {
 	let client = reqwest::Client::new();
 	let res = client.post("/api/auth/register")
 		.json(&payload)
@@ -76,22 +77,22 @@ pub(super) fn RegisterPage() -> impl IntoView {
     };
 
     view! {
-		<section class="page page--auth">
-			<header class="page__header">
-				<h1 class="page__title">"Register"</h1>
-				<p class="page__subtitle">
+		<section class=format!("{} {}", style::page, style::page_auth)>
+			<header class=style::page_header>
+				<h1 class=style::page_title>"Register"</h1>
+				<p class=style::page_subtitle>
 					"Create an account with a username, email, and password."
 				</p>
 			</header>
 
-			<article class="auth-card">
-				<form class="auth-form" on:submit=on_submit>
-					<label class="editor-label" for="register-username-input">
+			<article class=style::auth_card>
+				<form class=style::auth_form on:submit=on_submit>
+					<label class=style::form_label for="register-username-input">
 						"Username"
 					</label>
 					<input
 						id="register-username-input"
-						class="expression-input"
+						class=style::text_input
 						type="text"
 						prop:value=move || username.get()
 						on:input=move |event| username.set(event_target_value(&event))
@@ -99,12 +100,12 @@ pub(super) fn RegisterPage() -> impl IntoView {
 						required=true
 					/>
 
-					<label class="editor-label" for="register-email-input">
+					<label class=style::form_label for="register-email-input">
 						"Email"
 					</label>
 					<input
 						id="register-email-input"
-						class="expression-input"
+						class=style::text_input
 						type="email"
 						prop:value=move || email.get()
 						on:input=move |event| email.set(event_target_value(&event))
@@ -112,12 +113,12 @@ pub(super) fn RegisterPage() -> impl IntoView {
 						required=true
 					/>
 
-					<label class="editor-label" for="register-password-input">
+					<label class=style::form_label for="register-password-input">
 						"Password"
 					</label>
 					<input
 						id="register-password-input"
-						class="expression-input"
+						class=style::text_input
 						type="password"
 						prop:value=move || password.get()
 						on:input=move |event| password.set(event_target_value(&event))
@@ -126,7 +127,7 @@ pub(super) fn RegisterPage() -> impl IntoView {
 					/>
 
 					<button
-						class="roll-button"
+						class="button-primary"
 						type="submit"
 						prop:disabled=move || submitting.get()
 					>
@@ -138,14 +139,18 @@ pub(super) fn RegisterPage() -> impl IntoView {
 							.get()
 							.map(|message| {
 								view! {
-									<p class="auth-feedback auth-feedback--error">{message}</p>
+									<p class=format!(
+										"{} {}",
+										style::auth_feedback,
+										style::auth_feedback_error,
+									)>{message}</p>
 								}
 							})
 					}}
 				</form>
 
-				<p class="auth-switch">
-					"Already have an account? " <a class="auth-switch__link" href="/login">
+				<p class=style::auth_switch>
+					"Already have an account? " <a class=style::auth_switch_link href="/login">
 						"Sign in"
 					</a>
 				</p>

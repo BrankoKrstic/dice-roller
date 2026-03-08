@@ -4,7 +4,10 @@ use leptos_router::{
     path,
 };
 
-use crate::client::pages::{home::HomePage, not_found::NotFoundPage, stats::StatsPage};
+use crate::client::pages::{
+    home::HomePage, login::LoginPage, not_found::NotFoundPage, register::RegisterPage,
+    stats::StatsPage,
+};
 
 mod home;
 mod login;
@@ -23,6 +26,8 @@ pub fn AppRoutes() -> impl IntoView {
                 <Routes fallback=NotFoundPage>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/chance") view=StatsPage />
+                    <Route path=path!("/login") view=LoginPage />
+                    <Route path=path!("/register") view=RegisterPage />
 
                 </Routes>
             </main>

@@ -11,9 +11,8 @@ use thiserror::Error;
 
 use crate::server::db::{Db, DbError};
 use crate::server::structures::user::{
- ExistingUser, PasswordHashed, User
+ AuthUser, Email, ExistingUser, PasswordHashed, User, UserId, Username
 };
-use crate::shared::data::user::{AuthUser, Email, UserId, Username};
 
 #[derive(Debug, Error)]
 pub enum AuthError {

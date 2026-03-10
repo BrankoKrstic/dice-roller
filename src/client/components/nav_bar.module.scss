@@ -5,6 +5,8 @@
   backdrop-filter: blur(12px);
   background: color-mix(in srgb, var(--bg) 80%, transparent);
   border-bottom: 1px solid var(--border);
+  transition: background-color .5s ease;
+
 }
 
 .header-inner {

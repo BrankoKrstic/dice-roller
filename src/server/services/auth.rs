@@ -10,8 +10,13 @@ use leptos_use::SameSite;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{server::{db::{Db, DbError}, structures::user::{ExistingUser, LoginRequest, PasswordHashed, User}}, shared::data::user::{AuthUser, Email, UserId, Username}};
-
+use crate::{
+    server::{
+        db::{Db, DbError},
+        structures::user::{ExistingUser, LoginRequest, PasswordHashed, User},
+    },
+    shared::data::user::{AuthUser, Email, UserId, Username},
+};
 
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -35,7 +40,6 @@ pub enum AuthError {
 
 const AUTH_COOKIE_NAME: &str = "dice_roller_jwt";
 
-
 impl From<DbError> for AuthError {
     fn from(value: DbError) -> Self {
         Self::Database(value)
@@ -48,12 +52,10 @@ impl From<libsql::Error> for AuthError {
     }
 }
 
-
 #[derive(Clone, Serialize)]
 pub struct AuthErrorResponse {
     error: String,
 }
-
 
 impl From<AuthError> for (StatusCode, Json<AuthErrorResponse>) {
     fn from(value: AuthError) -> Self {
@@ -96,7 +98,6 @@ impl From<AuthError> for (StatusCode, Json<AuthErrorResponse>) {
     }
 }
 
-
 #[derive(Clone)]
 pub struct AuthService {
     db: Db,
@@ -104,7 +105,6 @@ pub struct AuthService {
     jwt_exp_seconds: u64,
     cookie_secure: bool,
 }
-
 
 impl AuthService {
     pub async fn from_env(db: Db) -> Result<Self, AuthError> {
@@ -180,7 +180,7 @@ impl AuthService {
             let user = AuthUser {
                 id: user.id,
                 email: user.email,
-                username: user.username
+                username: user.username,
             };
             Ok(user)
         } else {
@@ -242,9 +242,7 @@ impl AuthService {
     }
     pub fn check_token(&self, jar: CookieJar) -> Result<Option<AuthUser>, AuthError> {
         let token = jar.get(AUTH_COOKIE_NAME);
-        let Some(cookie) = token else {
-            return Ok(None)
-        };
+        let Some(cookie) = token else { return Ok(None) };
         let mut validation = Validation::new(Algorithm::HS256);
 
         validation.validate_exp = true;
@@ -262,7 +260,7 @@ impl AuthService {
             email: Email::new(data.claims.email),
         }))
     }
-    
+
     pub fn auth_cookie(&self, token: String) -> Cookie<'static> {
         Cookie::build((AUTH_COOKIE_NAME.to_string(), token))
             .path("/")

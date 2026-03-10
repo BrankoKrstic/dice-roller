@@ -1,7 +1,9 @@
 use leptos::{logging, prelude::*};
 
-use crate::{client::utils::url::base_url, shared::data::user::{AuthContext, AuthUser}};
-
+use crate::{
+    client::utils::url::base_url,
+    shared::data::user::{AuthContext, AuthUser},
+};
 
 pub async fn logout() {
     let ctx = use_auth_context();
@@ -15,7 +17,9 @@ pub async fn logout() {
         .await
         .map_err(|err| err.to_string());
 
-    if res.is_ok() {
+    if let Ok(res) = res
+        && res.status() == 200
+    {
         ctx.user.set(None);
     }
     ctx.loading.set(false);
@@ -25,10 +29,11 @@ pub async fn logout() {
 async fn load_user_data() -> Result<Option<AuthUser>, ServerFnError> {
     use crate::server::services::auth::AuthService;
     use axum::extract::State;
-    
+
     let state = expect_context::<crate::server::api::AppState>();
-    
-    let (jar, State(auth)): (axum_extra::extract::CookieJar, State<AuthService>) = leptos_axum::extract_with_state(&state).await?;
+
+    let (jar, State(auth)): (axum_extra::extract::CookieJar, State<AuthService>) =
+        leptos_axum::extract_with_state(&state).await?;
 
     Ok(auth.check_token(jar)?)
 }
@@ -52,7 +57,6 @@ pub fn provide_auth_context() {
     });
 }
 
-
-pub (crate) fn use_auth_context() -> AuthContext {
+pub(crate) fn use_auth_context() -> AuthContext {
     use_context::<AuthContext>().unwrap_or(AuthContext::new(None))
 }

@@ -2,7 +2,7 @@ use leptos::{prelude::*, task::spawn_local};
 
 use crate::client::context::{
     auth::{logout, use_auth_context},
-    theme::{toggle_theme, use_theme_context, Theme},
+    theme::{Theme, toggle_theme, use_theme_context},
 };
 
 stylance::import_style!(style, "nav_bar.module.scss");

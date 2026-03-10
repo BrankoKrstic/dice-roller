@@ -4,10 +4,10 @@ use dice_roller::shared::data::user::AuthContext;
 #[tokio::main]
 async fn main() {
     use axum::Router;
-    use dice_roller::server::api::create_router;
-    use dice_roller::server::{api::{AppState}, db::Db};
-    use dice_roller::{app::shell, server::services::auth::AuthService};
     use dice_roller::client::App;
+    use dice_roller::server::api::create_router;
+    use dice_roller::server::{api::AppState, db::Db};
+    use dice_roller::{app::shell, server::services::auth::AuthService};
     use leptos::logging::log;
     use leptos::prelude::*;
     use leptos_axum::{LeptosRoutes, generate_route_list};
@@ -22,13 +22,12 @@ async fn main() {
     let router = create_router().await;
 
     let db = Db::from_env().await.unwrap();
-	let auth = AuthService::from_env(db).await.unwrap();
+    let auth = AuthService::from_env(db).await.unwrap();
 
     let state = AppState {
         leptos_options: leptos_options.clone(),
-        auth: auth.clone()
+        auth: auth.clone(),
     };
-
 
     let app = Router::<AppState>::new()
         .nest("/api", router)

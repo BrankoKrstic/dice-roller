@@ -1,0 +1,89 @@
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 3rem;
+  height: 3rem;
+  cursor: pointer;
+
+  background-color: var(--bg-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+@media (pointer: fine) {
+  .switch input:focus-visible + .slider {
+    outline: var(--accent) solid 1px;
+    outline-offset: 4px;
+    border-radius: 4px;
+  }
+}
+
+.slider {
+  position: absolute;
+  overflow: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.slider .icon-wrapper {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.sun,
+.moon {
+  transition: transform 0.15s ease-out;
+}
+
+.sun {
+  transform: translateY(16%);
+}
+
+.moon {
+  transform: translateY(105%);
+}
+
+.switch input:not(:checked) + .slider .sun {
+  transition-delay: 0.2s;
+  transform: translateY(16%);
+}
+
+.switch input:not(:checked) + .slider .moon {
+  transform: translateY(105%);
+}
+
+.switch input:checked + .slider .moon {
+  transition-delay: 0.2s;
+  transform: translateY(16%);
+}
+
+.switch input:checked + .slider .sun {
+  transform: translateY(105%);
+}
+
+.switch svg {
+  height: 2rem;
+  width: 2rem;
+  transition: transform 0.1s ease-in-out;
+}
+
+.switch svg * {
+  fill: var(--text-muted);
+  transition: fill 0.2s ease-in-out;
+}

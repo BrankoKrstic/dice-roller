@@ -16,7 +16,9 @@
   grid-template-columns: 1fr auto auto;
   gap: 1rem;
   align-items: center;
-  min-height: 4.5rem;
+  min-height: 5rem;
+  font-size: 1.2rem;
+  padding: 0 1rem;
 }
 
 .brand {
@@ -31,18 +33,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.05rem;
-  height: 2.05rem;
+  width: 3rem;
+  height: 3rem;
   border-radius: 0.72rem;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #fff;
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: 1rem;
   text-transform: uppercase;
 }
 
 .brand-text {
-  font-size: 1rem;
+  font-size: 1.2rem;
+  padding-left: 0.5rem;
 }
 
 .nav {
@@ -111,13 +114,16 @@
 
 
 .nav-user {
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-muted);
-  font-size: 0.88rem;
+  font: inherit;
+  font-size: 0.8rem;
   font-weight: 650;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
 }
 
 .nav-button {
@@ -126,9 +132,9 @@
   background: color-mix(in srgb, var(--danger) 16%, transparent);
   color: var(--text);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   font-weight: 650;
-  padding: 0.45rem 0.75rem;
+  padding: 0.5rem 1rem;
   cursor: pointer;
 }
 

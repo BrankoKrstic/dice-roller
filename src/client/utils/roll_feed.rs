@@ -2,7 +2,7 @@
 pub struct DiceRoll {
     pub id: String,
     pub user_id: String,
-    pub user_name: String,
+    pub username: String,
     pub ts: String,
     pub expr: String,
     pub result: i64,

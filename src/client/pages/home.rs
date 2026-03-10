@@ -21,7 +21,7 @@ pub(crate) fn HomePage() -> impl IntoView {
         let new_roll = DiceRoll {
             id: String::new(),
             user_id: String::new(),
-            user_name: String::from("You"),
+            username: String::from("You"),
             ts: format_timestamp(Utc::now()),
             expr,
             result: result.total(),

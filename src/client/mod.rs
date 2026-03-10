@@ -16,9 +16,10 @@ use crate::client::{
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
-    provide_auth_context();
     provide_theme_context();
+    provide_auth_context();
     let theme_context = use_theme_context();
+
     view! {
         // content for this welcome page
         // injects a stylesheet into the document <head>

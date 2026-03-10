@@ -5,14 +5,13 @@ use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
+use leptos::logging;
 use leptos_use::SameSite;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::server::db::{Db, DbError};
-use crate::server::structures::user::{
- AuthUser, Email, ExistingUser, PasswordHashed, User, UserId, Username
-};
+use crate::{server::{db::{Db, DbError}, structures::user::{ExistingUser, LoginRequest, PasswordHashed, User}}, shared::data::user::{AuthUser, Email, UserId, Username}};
+
 
 #[derive(Debug, Error)]
 pub enum AuthError {
@@ -49,7 +48,9 @@ impl From<libsql::Error> for AuthError {
     }
 }
 
-struct AuthErrorResponse {
+
+#[derive(Clone, Serialize)]
+pub struct AuthErrorResponse {
     error: String,
 }
 
@@ -95,6 +96,8 @@ impl From<AuthError> for (StatusCode, Json<AuthErrorResponse>) {
     }
 }
 
+
+#[derive(Clone)]
 pub struct AuthService {
     db: Db,
     jwt_secret: String,
@@ -102,10 +105,6 @@ pub struct AuthService {
     cookie_secure: bool,
 }
 
-pub struct LoginRequest {
-    email: Email,
-    password: PasswordHashed,
-}
 
 impl AuthService {
     pub async fn from_env(db: Db) -> Result<Self, AuthError> {
@@ -128,6 +127,7 @@ impl AuthService {
             cookie_secure,
         };
         out.run_migrations().await?;
+        logging::log!("GOT HERE NOW");
 
         Ok(out)
     }
@@ -165,17 +165,27 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn register(&self, payload: User) -> Result<(), AuthError> {
+    pub async fn register(&self, payload: User) -> Result<AuthUser, AuthError> {
         let conn = self.db.connection()?;
 
         let result = conn.execute(
             "INSERT INTO users (username, email, password, created_at) VALUES (?1, ?2, ?3, unixepoch('now'))",
-            (payload.user_name.as_str(), payload.email.as_str(), payload.password.as_str())
+            (payload.username.as_str(), payload.email.as_str(), payload.password.as_str())
         ).await;
 
-        let result = result.map_err(map_insert_error)?;
+        let _result = result.map_err(map_insert_error)?;
 
-        Ok(())
+        let user = self.find_user_by_email(&payload.email).await?;
+        if let Some(user) = user {
+            let user = AuthUser {
+                id: user.id,
+                email: user.email,
+                username: user.username
+            };
+            Ok(user)
+        } else {
+            Err(DbError::Database("Failed to create user".to_string()).into())
+        }
     }
     async fn find_user_by_email(&self, email: &Email) -> Result<Option<ExistingUser>, AuthError> {
         let conn = self.db.connection()?;
@@ -209,7 +219,7 @@ impl AuthService {
 
         Ok(AuthUser {
             id: user.id,
-            username: user.user_name,
+            username: user.username,
             email: user.email,
         })
     }
@@ -230,23 +240,27 @@ impl AuthService {
         )
         .map_err(|error| AuthError::Token(error.to_string()))
     }
-    pub async fn check_token(&self, token: &str) -> Result<AuthUser, AuthError> {
+    pub fn check_token(&self, jar: CookieJar) -> Result<Option<AuthUser>, AuthError> {
+        let token = jar.get(AUTH_COOKIE_NAME);
+        let Some(cookie) = token else {
+            return Ok(None)
+        };
         let mut validation = Validation::new(Algorithm::HS256);
 
         validation.validate_exp = true;
 
         let data = decode::<Claims>(
-            token,
+            cookie.value(),
             &DecodingKey::from_secret(self.jwt_secret.as_bytes()),
             &validation,
         )
         .map_err(|error| AuthError::Unauthorized(error.to_string()))?;
 
-        Ok(AuthUser {
+        Ok(Some(AuthUser {
             id: UserId::new(data.claims.sub),
             username: Username::new(data.claims.username),
             email: Email::new(data.claims.email),
-        })
+        }))
     }
     
     pub fn auth_cookie(&self, token: String) -> Cookie<'static> {
@@ -258,8 +272,17 @@ impl AuthService {
             .build()
     }
 
+    pub fn remove_auth_cookie(&self) -> Cookie<'static> {
+        Cookie::build((AUTH_COOKIE_NAME.to_string(), ""))
+            .path("/")
+            .http_only(true)
+            .same_site(SameSite::Lax)
+            .secure(self.cookie_secure)
+            .build()
+    }
+
     pub fn clear_auth_cookie(&self, jar: CookieJar) -> CookieJar {
-        jar.remove(Cookie::from(AUTH_COOKIE_NAME))
+        jar.remove(self.remove_auth_cookie())
     }
 }
 

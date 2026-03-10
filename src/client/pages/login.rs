@@ -3,7 +3,7 @@ use leptos_router::hooks::use_navigate;
 use serde::Serialize;
 use web_sys::SubmitEvent;
 
-use crate::client::context::auth::{AuthUser, use_auth_context};
+use crate::{client::{context::auth::use_auth_context, utils::url::base_url}, shared::data::user::AuthUser};
 
 stylance::import_style!(style, "auth.module.scss");
 
@@ -17,7 +17,7 @@ struct LoginRequest {
 
 async fn login_user_request(payload: LoginRequest) -> Result<AuthUser, String> {
 	let client = reqwest::Client::new();
-	let res = client.post("/api/auth/login")
+	let res = client.post(format!("{}/api/auth/login", base_url()))
 		.json(&payload)
 		.send()
 		.await.map_err(|err| err.to_string())?;

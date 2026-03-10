@@ -4,7 +4,7 @@ use leptos_router::hooks::use_navigate;
 use serde::Serialize;
 use web_sys::SubmitEvent;
 
-use crate::client::context::auth::{AuthUser, use_auth_context};
+use crate::{client::{context::auth::use_auth_context, utils::url::base_url}, shared::data::user::AuthUser};
 
 stylance::import_style!(style, "auth.module.scss");
 
@@ -15,13 +15,15 @@ struct RegisterRequest {
 	password: String,
 }
 
-
 async fn register_user_request(payload: RegisterRequest) -> Result<AuthUser, String> {
 	let client = reqwest::Client::new();
-	let res = client.post("/api/auth/register")
+	let res = client.post(format!("{}/api/auth/register", base_url()))
 		.json(&payload)
 		.send()
-		.await.map_err(|err| err.to_string())?;
+		.await.map_err(|err| {
+			leptos::logging::debug_error!("{:?}", err);
+			err.to_string()
+		})?;
 
 
     if !(200..300).contains(&res.status().as_u16()) {

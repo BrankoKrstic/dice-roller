@@ -1,13 +1,16 @@
-use leptos::prelude::*;
+use leptos::{prelude::*, task::spawn_local};
 
-use crate::client::context::theme::{Theme, toggle_theme, use_theme_context};
+use crate::client::context::{
+    auth::{logout, use_auth_context},
+    theme::{toggle_theme, use_theme_context, Theme},
+};
 
 stylance::import_style!(style, "nav_bar.module.scss");
 
 #[component]
 pub fn NavBar() -> impl IntoView {
     let theme = use_theme_context();
-
+    let auth = use_auth_context();
     view! {
         <header class=style::header>
             <div class=style::header_inner>
@@ -26,6 +29,40 @@ pub fn NavBar() -> impl IntoView {
                     <a class=style::nav_link href="/rooms">
                         "Rooms"
                     </a>
+                    {move || {
+                        if auth.loading.get() {
+                            view! { <span class=style::nav_user>"..."</span> }.into_any()
+                        } else if let Some(user) = auth.user.get() {
+                            view! {
+                                <>
+                                    <span class=style::nav_user>
+                                        {format!("Hi, {}", user.username.as_str())}
+                                    </span>
+                                    <button
+                                        class=style::nav_button
+                                        type="button"
+                                        on:click=move |_| spawn_local(logout())
+                                    >
+
+                                        "Logout"
+                                    </button>
+                                </>
+                            }
+                                .into_any()
+                        } else {
+                            view! {
+                                <>
+                                    <a class=style::nav_link href="/login">
+                                        "Login"
+                                    </a>
+                                    <a class=style::nav_link href="/register">
+                                        "Register"
+                                    </a>
+                                </>
+                            }
+                                .into_any()
+                        }
+                    }}
                 </nav>
 
                 <button

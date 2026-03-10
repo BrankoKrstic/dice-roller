@@ -93,7 +93,7 @@ pub fn RollFeed(
                                                 <li class=style::roll_feed_item>
                                                     <div class=style::roll_feed_item_header>
                                                         <strong class=style::roll_feed_item_user>
-                                                            {roll.user_name.clone()}
+                                                            {roll.username.clone()}
                                                         </strong>
                                                         <span class=style::roll_feed_item_total>{roll.result}</span>
                                                     </div>

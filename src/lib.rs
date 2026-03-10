@@ -8,9 +8,9 @@ pub mod shared;
 use serde::{Deserialize, Serialize};
 
 use crate::dsl::{
-    RollError,
     interpreter::{CryptoDiceRng, Interpreter},
     parser::Parser,
+    RollError,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -36,6 +36,7 @@ struct WorkerSimulationRequest {
     ac_mode: bool,
 }
 
+#[cfg(feature = "hydrate")]
 fn worker_response_json(result: Result<ChanceResult, RollError>) -> String {
     let payload = match result {
         Ok(result) => WorkerSimulationResponse::Result(result),

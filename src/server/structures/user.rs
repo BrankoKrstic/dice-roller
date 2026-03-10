@@ -1,57 +1,15 @@
-use std::{f32::consts::E, fmt::Display};
-
 use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
-use leptos::html::P;
 use regex::Regex;
 use serde::{
-    de::{self, Error, Visitor},
+    de::{self},
     Deserialize, Deserializer,
 };
 use thiserror::Error;
 
-pub struct UserId(i64);
-
-impl UserId {
-    pub fn new(id: i64) -> Self {
-        Self(id)
-    }
-    pub fn into_inner(self) -> i64 {
-        self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Email(String);
-
-impl Email {
-    pub fn new(val: String) -> Self {
-        Self(val)
-    }
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Username(String);
-
-impl Username {
-    pub fn new(val: String) -> Self {
-        Self(val)
-    }
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
+use crate::shared::data::user::{Email, Password, UserId, Username};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PasswordHashed(String);
@@ -88,24 +46,20 @@ impl PasswordHashed {
 #[error("Password error {0}")]
 pub struct PasswordError(String);
 
-#[derive(Debug, Error)]
-enum DeserializeError {
-    #[error("Deserialize Error: {0}")]
-    Message(String),
-}
-
-impl de::Error for DeserializeError {
-    fn custom<T: Display>(msg: T) -> Self {
-        DeserializeError::Message(msg.to_string())
-    }
-}
-
-fn deserialize_password<'de, D>(deserializer: D) -> Result<PasswordHashed, D::Error>
+fn deserialize_password_hashed<'de, D>(deserializer: D) -> Result<PasswordHashed, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s: &str = de::Deserialize::deserialize(deserializer)?;
     PasswordHashed::from_unhashed(s).map_err(de::Error::custom)
+}
+
+fn deserialize_password<'de, D>(deserializer: D) -> Result<Password, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = de::Deserialize::deserialize(deserializer)?;
+    Ok(Password::new(s.to_string()))
 }
 
 fn deserialize_username<'de, D>(deserializer: D) -> Result<Username, D::Error>
@@ -147,31 +101,33 @@ pub struct User {
     #[serde(deserialize_with = "deserialize_email")]
     pub email: Email,
     #[serde(deserialize_with = "deserialize_username")]
-    pub user_name: Username,
-    #[serde(deserialize_with = "deserialize_password")]
+    pub username: Username,
+    #[serde(deserialize_with = "deserialize_password_hashed")]
     pub password: PasswordHashed,
 }
 
 pub struct ExistingUser {
     pub id: UserId,
     pub email: Email,
-    pub user_name: Username,
+    pub username: Username,
     pub password: PasswordHashed,
 }
 
 impl ExistingUser {
-    pub fn new(id: UserId, email: Email, user_name: Username, password: PasswordHashed) -> Self {
+    pub fn new(id: UserId, email: Email, username: Username, password: PasswordHashed) -> Self {
         Self {
             id,
             email,
-            user_name,
+            username,
             password,
         }
     }
 }
 
-pub struct AuthUser {
-    pub id: UserId,
-    pub username: Username,
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    #[serde(deserialize_with = "deserialize_email")]
     pub email: Email,
+    #[serde(deserialize_with = "deserialize_password")]
+    pub password: Password,
 }

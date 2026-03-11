@@ -1,4 +1,11 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use chrono::Utc;
+
 use crate::client::utils::roll_feed::{DiceRoll, DiceRollFeed};
+use crate::shared::utils::time::format_timestamp;
+
+static LOCAL_ROOM_ROLL_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RoomRosterEntry {
@@ -62,6 +69,24 @@ pub(crate) fn find_room_by_id(route_room_id: &str) -> Option<RoomStub> {
     seeded_rooms()
         .into_iter()
         .find(|room| room.room_id == room_id)
+}
+
+pub(crate) fn build_local_room_roll(expr: &str, result: i64, breakdown: &str) -> DiceRoll {
+    let now = Utc::now();
+    let sequence = LOCAL_ROOM_ROLL_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let timestamp = now
+        .timestamp_nanos_opt()
+        .unwrap_or_else(|| now.timestamp_micros() * 1_000);
+
+    DiceRoll {
+        id: format!("local-room-roll-{timestamp}-{sequence}"),
+        user_id: "local-room-user".to_string(),
+        username: "You".to_string(),
+        ts: format_timestamp(now),
+        expr: expr.to_string(),
+        result,
+        breakdown: breakdown.to_string(),
+    }
 }
 
 pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
@@ -248,7 +273,7 @@ fn percent_decode(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_room_by_id, join_target_from_input};
+    use super::{build_local_room_roll, find_room_by_id, join_target_from_input, seeded_rooms};
 
     #[test]
     fn join_target_is_none_for_blank_input() {
@@ -282,5 +307,59 @@ mod tests {
 
         assert_eq!(room.room_id, "copper-annex");
         assert_eq!(room.room_title, "Copper Annex");
+    }
+
+    #[test]
+    fn appended_room_roll_has_unique_id_and_local_metadata() {
+        let first_roll = build_local_room_roll("2d6 + 4", 11, "2d6 + 4\n[3, 4] + 4 = 11");
+        let second_roll = build_local_room_roll("d20 + 2", 17, "d20 + 2\n15 + 2 = 17");
+
+        assert_ne!(first_roll.id, second_roll.id);
+        assert!(first_roll.id.starts_with("local-room-roll-"));
+        assert_eq!(first_roll.user_id, "local-room-user");
+        assert_eq!(first_roll.username, "You");
+        assert_eq!(first_roll.expr, "2d6 + 4");
+        assert_eq!(first_roll.result, 11);
+        assert_eq!(first_roll.breakdown, "2d6 + 4\n[3, 4] + 4 = 11");
+        assert!(!first_roll.ts.is_empty());
+        assert!(first_roll.ts.contains('-'));
+        assert!(first_roll.ts.contains(':'));
+    }
+
+    #[test]
+    fn appending_room_roll_does_not_mutate_seeded_room_feed() {
+        let seeded_room = seeded_rooms()
+            .into_iter()
+            .find(|room| room.room_id == "moonlit-ledger")
+            .expect("expected seeded room");
+        let seeded_roll_count = seeded_room.activity_feed.rolls.len();
+
+        let mut local_feed = seeded_room.activity_feed.clone();
+        let appended_roll = build_local_room_roll("3d6", 12, "3d6\n[4, 4, 4] = 12");
+        let appended_roll_id = appended_roll.id.clone();
+        local_feed.add_roll(appended_roll);
+
+        assert_eq!(local_feed.rolls.len(), seeded_roll_count + 1);
+        assert_eq!(local_feed.rolls.last().expect("expected appended roll").id, appended_roll_id);
+        assert_eq!(
+            local_feed.rolls.first().expect("expected seeded roll").id,
+            "room-moonlit-ledger-roll-1"
+        );
+
+        let refreshed_seeded_room = seeded_rooms()
+            .into_iter()
+            .find(|room| room.room_id == "moonlit-ledger")
+            .expect("expected seeded room");
+
+        assert_eq!(refreshed_seeded_room.activity_feed.rolls.len(), seeded_roll_count);
+        assert_eq!(
+            refreshed_seeded_room
+                .activity_feed
+                .rolls
+                .last()
+                .expect("expected seeded roll")
+                .id,
+            "room-moonlit-ledger-roll-2"
+        );
     }
 }

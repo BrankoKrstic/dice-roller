@@ -32,6 +32,7 @@ fn live_user_preview(room: &RoomSummary) -> String {
 
 fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl IntoView {
     let join_input = RwSignal::new(initial_join_input.to_string());
+    let join_target = Memo::new(move |_| join_target_from_input(&join_input.get()));
 
     view! {
         <section class="g-page g-page-shell">
@@ -52,7 +53,7 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                             "Keep the entry point visible so the rooms board feels complete, but leave the control honest until creation wiring lands."
                         </p>
                         <div class=style::launch_action_row>
-                            <button class="g-button-action" type="button" disabled>
+                            <button id="rooms-create-room" class="g-button-action" type="button" disabled>
                                 "Create a room"
                             </button>
                             <p class=style::launch_helper>
@@ -67,7 +68,7 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                         <label class="g-field-label" for="rooms-join-room-id">
                             "Room ID"
                         </label>
-                        <div class=style::join_row>
+                        <form class=style::join_row method="get">
                             <input
                                 id="rooms-join-room-id"
                                 class="g-text-input"
@@ -77,28 +78,17 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                                 on:input=move |event: Event| join_input.set(event_target_value(&event))
                             />
                             <div class=style::join_action_slot>
-                                {move || {
-                                    match join_target_from_input(&join_input.get()) {
-                                        Some(target) => {
-                                            view! {
-                                                <a class="g-button-action" href=target>
-                                                    "Join room"
-                                                </a>
-                                            }
-                                                .into_any()
-                                        }
-                                        None => {
-                                            view! {
-                                                <button class="g-button-action" type="button" disabled>
-                                                    "Join room"
-                                                </button>
-                                            }
-                                                .into_any()
-                                        }
-                                    }
-                                }}
+                                <button
+                                    id="rooms-join-submit"
+                                    class="g-button-action"
+                                    type="submit"
+                                    disabled=move || join_target.get().is_none()
+                                    formaction=move || join_target.get().unwrap_or_default()
+                                >
+                                    "Join room"
+                                </button>
                             </div>
-                        </div>
+                        </form>
                         <p class=style::join_helper>
                             "Room validation and membership wiring are still pending. This action only exposes the room route for now."
                         </p>
@@ -199,14 +189,25 @@ mod tests {
         view! { <>{rooms_page_content(rooms, join_input)}</> }.to_html()
     }
 
+    fn element_tag<'a>(html: &'a str, marker: &str) -> &'a str {
+        let start = html.find(marker).expect("expected element marker");
+        let remainder = &html[start..];
+        let end = remainder.find('>').expect("expected tag close");
+
+        &remainder[..=end]
+    }
+
     #[test]
     fn rooms_page_renders_launch_and_join_sections() {
-        let html = render_rooms_page_html(room_summaries(), "");
+        let html = render_rooms_page_html(room_summaries(), "   ");
+        let create_button = element_tag(&html, "id=\"rooms-create-room\"");
+        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
 
-        assert!(html.contains("Create a room"));
+        assert!(create_button.contains("disabled"));
         assert!(html.contains("Join by room ID"));
         assert!(html.contains("Joined rooms"));
-        assert!(html.contains("Join room</button>"));
+        assert!(html.contains("<form"));
+        assert!(join_button.contains("disabled"));
     }
 
     #[test]
@@ -216,7 +217,7 @@ mod tests {
         assert!(html.contains("Moonlit Ledger"));
         assert!(html.contains("moonlit-ledger"));
         assert!(html.contains("3 live in room"));
-        assert!(html.contains("Aria Vale"));
+        assert!(html.contains("Aria Vale, Tobin Ash, and 1 more are already at the table."));
         assert!(html.contains("Latest motion: Mira logged a ward pulse at 14 total."));
     }
 
@@ -231,9 +232,10 @@ mod tests {
     #[test]
     fn rooms_page_exposes_encoded_join_target_for_trimmed_room_id() {
         let html = render_rooms_page_html(room_summaries(), "  Table 7/West Wing  ");
+        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
 
-        assert!(html.contains("href=\"/room/Table%207%2FWest%20Wing\""));
-        assert!(html.contains(">Join room</a>"));
+        assert!(join_button.contains("formaction=\"/room/Table%207%2FWest%20Wing\""));
+        assert!(!join_button.contains("disabled"));
     }
 
     #[test]

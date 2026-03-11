@@ -1,7 +1,9 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
-use super::room_stubs::{build_local_room_roll, find_room_by_id, RoomRosterEntry, RoomStub};
+use super::room_stubs::{
+    build_local_room_roll, find_room_by_id, normalize_room_id_input, RoomRosterEntry, RoomStub,
+};
 use crate::{
     client::components::{roll_editor::RollEditor, roll_feed::RollFeed},
     dsl::parse_and_roll,
@@ -173,11 +175,12 @@ pub fn RoomPage() -> impl IntoView {
 
     view! {
         {move || {
-            let attempted_room_id = params.get().get("roomId").unwrap_or_default();
-            let trimmed_room_id = attempted_room_id.trim().to_string();
-            let room = find_room_by_id(&trimmed_room_id);
+            let attempted_room_id = normalize_room_id_input(
+                &params.get().get("roomId").unwrap_or_default(),
+            );
+            let room = find_room_by_id(&attempted_room_id);
 
-            room_page_content(room, &trimmed_room_id).into_any()
+            room_page_content(room, &attempted_room_id).into_any()
         }}
     }
 }
@@ -187,24 +190,25 @@ pub fn RoomPage() -> impl IntoView {
 mod tests {
     use leptos::prelude::*;
 
-    use crate::client::pages::room_stubs::find_room_by_id;
+    use crate::client::pages::room_stubs::{find_room_by_id, normalize_room_id_input};
 
-    use super::room_page_content;
+    use super::{room_page_content, style};
 
     fn render_room_page_html(room_id: &str) -> String {
         let owner = Owner::new();
         owner.set();
 
-        let trimmed_room_id = room_id.trim().to_string();
-        let room = find_room_by_id(&trimmed_room_id);
+        let normalized_room_id = normalize_room_id_input(room_id);
+        let room = find_room_by_id(&normalized_room_id);
 
-        view! { <>{room_page_content(room, &trimmed_room_id)}</> }.to_html()
+        view! { <>{room_page_content(room, &normalized_room_id)}</> }.to_html()
     }
 
     #[test]
     fn room_page_renders_table_first_layout_for_known_room() {
         let html = render_room_page_html("moonlit-ledger");
 
+        assert!(html.contains(style::room_shell));
         assert!(html.contains("Moonlit Ledger"));
         assert!(html.contains("moonlit-ledger"));
         assert!(html.contains("Active table"));
@@ -231,10 +235,11 @@ mod tests {
 
     #[test]
     fn room_page_renders_not_found_state_for_unknown_room() {
-        let html = render_room_page_html("  unknown-room  ");
+        let html = render_room_page_html("  unknown%20room  ");
 
+        assert!(html.contains(style::room_shell));
         assert!(html.contains("Room not found."));
-        assert!(html.contains("unknown-room"));
+        assert!(html.contains("unknown room"));
         assert!(html.contains("href=\"/rooms\""));
     }
 }

@@ -62,13 +62,16 @@ pub(crate) fn room_route(room_id: &str) -> String {
     format!("/room/{}", percent_encode(room_id))
 }
 
+pub(crate) fn normalize_room_id_input(room_id: &str) -> String {
+    percent_decode(room_id).trim().to_string()
+}
+
 pub(crate) fn find_room_by_id(route_room_id: &str) -> Option<RoomStub> {
-    let decoded = percent_decode(route_room_id);
-    let room_id = decoded.trim();
+    let room_id = normalize_room_id_input(route_room_id);
 
     seeded_rooms()
         .into_iter()
-        .find(|room| room.room_id == room_id)
+        .find(|room| room.room_id == room_id.as_str())
 }
 
 pub(crate) fn build_local_room_roll(expr: &str, result: i64, breakdown: &str) -> DiceRoll {

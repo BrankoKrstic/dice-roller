@@ -8,7 +8,7 @@ use crate::client::{
     context::auth::use_auth_context,
     pages::{
         home::HomePage, login::LoginPage, not_found::NotFoundPage, reference::ReferencePage,
-        register::RegisterPage, rooms::RoomsPage, stats::StatsPage,
+        register::RegisterPage, room::RoomPage, rooms::RoomsPage, stats::StatsPage,
     },
 };
 
@@ -39,6 +39,14 @@ pub fn AppRoutes() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/rooms")
                         view=RoomsPage
+                        condition=move || {
+                            if auth.loading.get() { None } else { Some(auth.user.get().is_some()) }
+                        }
+                        redirect_path=|| "/"
+                    />
+                    <ProtectedRoute
+                        path=path!("/room/:roomId")
+                        view=RoomPage
                         condition=move || {
                             if auth.loading.get() { None } else { Some(auth.user.get().is_some()) }
                         }

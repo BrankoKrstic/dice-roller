@@ -8,7 +8,7 @@ use crate::{
     shared::data::user::AuthUser,
 };
 
-stylance::import_style!(style, "auth.module.scss");
+stylance::import_style!(style, "register.module.scss");
 
 #[derive(Serialize)]
 struct RegisterRequest {
@@ -85,84 +85,94 @@ pub(super) fn RegisterPage() -> impl IntoView {
     };
 
     view! {
-        <section class=format!("{} {}", style::page, style::page_auth)>
-            <header class=style::page_header>
-                <h1 class=style::page_title>"Register"</h1>
-                <p class=style::page_subtitle>
-                    "Create an account with a username, email, and password."
-                </p>
-            </header>
+        <section class=format!("g-page g-page-shell {}", style::page_auth)>
+            <div class=style::auth_layout>
+                <header class="g-panel g-panel-strong">
+                    <p class="g-section-label">"New account"</p>
+                    <h1 class="g-section-title">"Open a table identity."</h1>
+                    <p class="g-section-summary">
+                        "Create an account so your name can stay attached to protected routes and shared session history."
+                    </p>
+                </header>
 
-            <article class=style::auth_card>
-                <form class=style::auth_form on:submit=on_submit>
-                    <label class=style::form_label for="register-username-input">
-                        "Username"
-                    </label>
-                    <input
-                        id="register-username-input"
-                        class=style::text_input
-                        type="text"
-                        prop:value=move || username.get()
-                        on:input=move |event| username.set(event_target_value(&event))
-                        autocomplete="username"
-                        required=true
-                    />
+                <article class=style::auth_card>
+                    <p class="g-section-label">"Register"</p>
+                    <form class=style::auth_form on:submit=on_submit>
+                        <label class="g-field-label" for="register-username-input">
+                            "Username"
+                        </label>
+                        <input
+                            id="register-username-input"
+                            class="g-text-input"
+                            type="text"
+                            prop:value=move || username.get()
+                            on:input=move |event| username.set(event_target_value(&event))
+                            autocomplete="username"
+                            required=true
+                        />
 
-                    <label class=style::form_label for="register-email-input">
-                        "Email"
-                    </label>
-                    <input
-                        id="register-email-input"
-                        class=style::text_input
-                        type="email"
-                        prop:value=move || email.get()
-                        on:input=move |event| email.set(event_target_value(&event))
-                        autocomplete="email"
-                        required=true
-                    />
+                        <label class="g-field-label" for="register-email-input">
+                            "Email"
+                        </label>
+                        <input
+                            id="register-email-input"
+                            class="g-text-input"
+                            type="email"
+                            prop:value=move || email.get()
+                            on:input=move |event| email.set(event_target_value(&event))
+                            autocomplete="email"
+                            required=true
+                        />
 
-                    <label class=style::form_label for="register-password-input">
-                        "Password"
-                    </label>
-                    <input
-                        id="register-password-input"
-                        class=style::text_input
-                        type="password"
-                        prop:value=move || password.get()
-                        on:input=move |event| password.set(event_target_value(&event))
-                        autocomplete="new-password"
-                        required=true
-                    />
+                        <label class="g-field-label" for="register-password-input">
+                            "Password"
+                        </label>
+                        <input
+                            id="register-password-input"
+                            class="g-text-input"
+                            type="password"
+                            prop:value=move || password.get()
+                            on:input=move |event| password.set(event_target_value(&event))
+                            autocomplete="new-password"
+                            required=true
+                        />
 
-                    <button
-                        class="button-primary"
-                        type="submit"
-                        prop:disabled=move || submitting.get()
-                    >
-                        {move || if submitting.get() { "Creating account..." } else { "Register" }}
-                    </button>
+                        <button
+                            class="g-button-action"
+                            type="submit"
+                            prop:disabled=move || submitting.get()
+                        >
+                            {move || if submitting.get() { "Creating account..." } else { "Register" }}
+                        </button>
 
-                    {move || {
-                        error
-                            .get()
-                            .map(|message| {
-                                view! {
-                                    <p class=format!(
-                                        "{} {}",
-                                        style::auth_feedback,
-                                        style::auth_feedback_error,
-                                    )>{message}</p>
-                                }
-                            })
-                    }}
-                </form>
+                        {move || {
+                            error
+                                .get()
+                                .map(|message| {
+                                    view! {
+                                        <p class=format!(
+                                            "{} {}",
+                                            style::auth_feedback,
+                                            style::auth_feedback_error,
+                                        )>{message}</p>
+                                    }
+                                })
+                        }}
+                    </form>
 
-                <p class=style::auth_switch>
-                    "Already have an account? " <a class=style::auth_switch_link href="/login">
-                        "Sign in"
-                    </a>
-                </p>
-            </article>
+                    <ul class=style::auth_side_list>
+                        <li>"Usernames become the visible voice in the roll history."</li>
+                        <li>"Email stays attached to recovery and auth flows."</li>
+                        <li>"You can jump straight back to the roller after registration."</li>
+                    </ul>
+
+                    <p class=style::auth_switch>
+                        "Already have an account? " <a class=style::auth_switch_link href="/login">
+                            "Sign in"
+                        </a>
+                    </p>
+                </article>
+            </div>
         </section>
     }
 }

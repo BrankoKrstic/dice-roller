@@ -19,18 +19,31 @@ pub fn App() -> impl IntoView {
     provide_theme_context();
     provide_auth_context();
     let theme_context = use_theme_context();
+    let theme_attr = move || theme_context.get().as_str().to_string();
 
     view! {
-        // content for this welcome page
-        // injects a stylesheet into the document <head>
-        // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/dice-roller.css" />
-
-        // sets the document title
-        <Title text="Welcome to Leptos" />
-        <div class="app-wrapper" data-theme=move || theme_context.get().as_str()>
-            <NavBar />
-            <pages::AppRoutes />
+        <Title text="Dice Roller | Session Ledger" />
+        <div class="g-app-wrapper" data-theme=theme_attr>
+            <div class="g-app-shell">
+                <NavBar />
+                <pages::AppRoutes />
+            </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn global_styles_use_g_prefixed_shared_classes() {
+        let styles = include_str!("../../style/main.scss");
+
+        assert!(styles.contains(".g-page-shell-split"));
+        assert!(styles.contains(".g-panel-strong"));
+        assert!(styles.contains(".g-button-action"));
+        assert!(styles.contains(".g-text-input"));
+        assert!(!styles.contains(".page-shell--split"));
+        assert!(!styles.contains(".button-action"));
     }
 }

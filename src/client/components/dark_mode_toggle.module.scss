@@ -1,16 +1,13 @@
-
 .switch {
   position: relative;
   display: inline-block;
-  width: 3rem;
+  width: 3.35rem;
   height: 3rem;
   cursor: pointer;
-
-  background-color: var(--bg-strong);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .switch input {
@@ -21,69 +18,66 @@
 
 @media (pointer: fine) {
   .switch input:focus-visible + .slider {
-    outline: var(--accent) solid 1px;
+    outline: 2px solid var(--accent-copper);
     outline-offset: 4px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
   }
 }
 
 .slider {
   position: absolute;
+  inset: 0;
   overflow: hidden;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
 }
 
-.slider .icon-wrapper {
+.slider::before {
+  content: "";
   position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
+  inset: 0.35rem;
+  border-radius: calc(var(--radius-sm) - 0.1rem);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+    color-mix(in srgb, var(--panel) 78%, transparent);
+}
+
+.icon-wrapper {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
 }
 
 .sun,
 .moon {
-  transition: transform 0.15s ease-out;
+  transition:
+    transform var(--motion-fast) ease,
+    opacity var(--motion-fast) ease;
 }
 
 .sun {
-  transform: translateY(16%);
+  transform: translateY(0);
 }
 
 .moon {
-  transform: translateY(105%);
-}
-
-.switch input:not(:checked) + .slider .sun {
-  transition-delay: 0.2s;
-  transform: translateY(16%);
-}
-
-.switch input:not(:checked) + .slider .moon {
-  transform: translateY(105%);
-}
-
-.switch input:checked + .slider .moon {
-  transition-delay: 0.2s;
-  transform: translateY(16%);
+  opacity: 0;
+  transform: translateY(100%);
 }
 
 .switch input:checked + .slider .sun {
-  transform: translateY(105%);
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.switch input:checked + .slider .moon {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .switch svg {
-  height: 2rem;
-  width: 2rem;
-  transition: transform 0.1s ease-in-out;
+  width: 1.65rem;
+  height: 1.65rem;
 }
 
 .switch svg * {
-  fill: var(--text-muted);
-  transition: fill 0.2s ease-in-out;
+  fill: var(--ink-muted);
 }

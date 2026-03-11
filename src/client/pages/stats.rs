@@ -76,12 +76,11 @@ fn StatsResultPanel(
     };
     view! {
         <section class=style::stats_result aria-live="polite">
-
             {move || {
                 if let Some(result) = result.get() {
                     view! {
                         <article class=style::stats_card>
-                            <h3 class=style::stats_card_label>"Simulation Result"</h3>
+                            <h3 class=style::stats_card_label>"Simulation result"</h3>
                             <p class=style::stats_card_total>
                                 {format!("{:.2}%", success_percent() * 100.0)}
                             </p>
@@ -102,7 +101,7 @@ fn StatsResultPanel(
                 } else if let Some(message) = error.get() {
                     view! {
                         <article class=format!("{} {}", style::stats_card, style::stats_card_error)>
-                            <h3 class=style::stats_card_label>"Simulation Error"</h3>
+                            <h3 class=style::stats_card_label>"Simulation error"</h3>
                             <p class=style::stats_card_error_inner>{message}</p>
                         </article>
                     }
@@ -116,7 +115,7 @@ fn StatsResultPanel(
                                     <article class=style::stats_card>
                                         <h3 class=style::stats_card_label>"Ready"</h3>
                                         <p class=style::stats_card_hint>
-                                            "Configure rolls and run a simulation."
+                                            "Set the target, draft the two rolls, then run the ledger."
                                         </p>
                                     </article>
                                 }
@@ -128,7 +127,7 @@ fn StatsResultPanel(
                                 aria-label="Simulation in progress"
                             >
                                 <div class=style::stats_loader_spinner></div>
-                                <p class=style::stats_loader_text>"Crunching..."</p>
+                                <p class=style::stats_loader_text>"Running one million trials..."</p>
                             </div>
                         </Show>
                     }
@@ -175,108 +174,159 @@ pub fn StatsPage() -> impl IntoView {
     let run_simulation = |_| {};
 
     view! {
-        <div class="page">
-            <div class="page-tabs" role="tablist" aria-label="Calculator type">
-                <button
-                    class="button-secondary"
-                    class:button-secondary-active=move || {
-                        matches!(variant.get(), CalculatorVariant::Ac)
-                    }
-                    type="button"
+        <div class=format!("g-page g-page-shell g-page-shell-split {}", style::stats_shell)>
+            <section class=style::stats_column>
+                <section class="g-panel g-panel-strong">
+                    <p class="g-section-label">"Analysis mode"</p>
+                    <h1 class="g-section-title">"Probability Ledger"</h1>
+                    <p class="g-section-summary">
+                        "Draft the two commands, set the target, and read the result as a clean numeric report."
+                    </p>
+                </section>
 
-                    on:click=move |_| set_variant.set(CalculatorVariant::Ac)
-                >
-                    "To-Hit"
-                </button>
-                <button
-                    class="button-secondary"
-                    class:button-secondary-active=move || {
-                        matches!(variant.get(), CalculatorVariant::Dc)
-                    }
-                    on:click=move |_| set_variant.set(CalculatorVariant::Dc)
-                    type="button"
-                >
-                    "Saving Throw"
-                </button>
-            </div>
-            <section class=style::stats_card>
-                <h2 class=style::stats_card_title>
-                    {move || {
-                        if matches!(variant.get(), CalculatorVariant::Ac) {
-                            "To-hit Calculator"
-                        } else {
-                            "Saving throw calculator"
-                        }
-                    }}
-                </h2>
-                <p class=style::stats_card_subtitle>
-                    {move || {
-                        if matches!(variant.get(), CalculatorVariant::Ac) {
-                            "Hit chance is the percent of rolls where to-hit is greater than or equal to target AC."
-                        } else {
-                            "Spell lands when save roll is below the save DC."
-                        }
-                    }}
-                </p>
+                <section class=format!("g-panel g-panel-strong {}", style::stats_workbench)>
+                    <div class=style::stats_toolbar>
+                        <div
+                            class=format!("g-roll-editor-mode-switch {}", style::stats_mode_switch)
+                            role="tablist"
+                            aria-label="Calculator type"
+                        >
+                            <button
+                                class="g-button-mode"
+                                class:g-button-mode-active=move || {
+                                    matches!(variant.get(), CalculatorVariant::Ac)
+                                }
+                                type="button"
+                                on:click=move |_| set_variant.set(CalculatorVariant::Ac)
+                            >
+                                "To-hit"
+                            </button>
+                            <button
+                                class="g-button-mode"
+                                class:g-button-mode-active=move || {
+                                    matches!(variant.get(), CalculatorVariant::Dc)
+                                }
+                                on:click=move |_| set_variant.set(CalculatorVariant::Dc)
+                                type="button"
+                            >
+                                "Saving throw"
+                            </button>
+                        </div>
 
-                <div class=style::stats_fields>
-                    <label class=style::stats_editor_label for="to-hit-target-input">
-                        {move || {
-                            if matches!(variant.get(), CalculatorVariant::Ac) {
-                                "Target AC"
-                            } else {
-                                "Target DC"
-                            }
-                        }}
-                    </label>
-                    <input
-                        id="to-hit-target-input"
-                        class="g-input"
-                        type="number"
-                        prop:value=move || target.get().to_string()
-                        on:input=move |ev| {
-                            set_target.set(event_target_value(&ev).parse::<i64>().unwrap_or(10));
-                        }
-                    />
-                </div>
+                        <div class=style::stats_target>
+                            <label class="g-field-label" for="to-hit-target-input">
+                                {move || {
+                                    if matches!(variant.get(), CalculatorVariant::Ac) {
+                                        "Target AC"
+                                    } else {
+                                        "Target DC"
+                                    }
+                                }}
+                            </label>
+                            <input
+                                id="to-hit-target-input"
+                                class=format!("g-text-input {}", style::stats_target_input)
+                                type="number"
+                                prop:value=move || target.get().to_string()
+                                on:input=move |ev| {
+                                    set_target.set(event_target_value(&ev).parse::<i64>().unwrap_or(10));
+                                }
+                            />
+                        </div>
+                    </div>
 
-                <div class=style::stats_editor_grid>
-                    <article class=style::stats_editor_block>
-                        <div class=style::stats_editor_block_inner>
+                    <div>
+                        <h2 class=style::stats_card_title>
+                            {move || {
+                                if matches!(variant.get(), CalculatorVariant::Ac) {
+                                    "Measure hit chance against armor."
+                                } else {
+                                    "Measure failure rate against a saving throw."
+                                }
+                            }}
+                        </h2>
+                        <p class=style::stats_card_subtitle>
+                            {move || {
+                                if matches!(variant.get(), CalculatorVariant::Ac) {
+                                    "Draft the attack roll and paired damage roll, then estimate how often the total lands against the target AC."
+                                } else {
+                                    "Draft the save expression and paired damage roll, then estimate how often the save misses the target DC."
+                                }
+                            }}
+                        </p>
+                    </div>
+
+                    <div class=style::stats_editor_grid>
+                        <article class=style::stats_editor_block>
+                            <p class="g-section-label">"Step 1"</p>
                             <h3 class=style::stats_editor_block_title>
                                 {move || {
                                     if matches!(variant.get(), CalculatorVariant::Ac) {
-                                        "To-hit Roll"
+                                        "Attack roll"
                                     } else {
-                                        "Saving Throw Roll"
+                                        "Saving throw roll"
                                     }
                                 }}
                             </h3>
-                            <EditorComponent state=to_hit_editor />
-                        </div>
-                    </article>
+                            <div class=style::stats_editor_body>
+                                <EditorComponent state=to_hit_editor />
+                            </div>
+                        </article>
 
-                    <article class=style::stats_editor_block>
-                        <div class=style::stats_editor_block_inner>
+                        <article class=style::stats_editor_block>
+                            <p class="g-section-label">"Step 2"</p>
+                            <h3 class=style::stats_editor_block_title>"Damage roll"</h3>
+                            <div class=style::stats_editor_body>
+                                <EditorComponent state=dmg_editor />
+                            </div>
+                        </article>
+                    </div>
 
-                            <h3 class=style::stats_editor_block_title>"Damage Roll"</h3>
-                            <EditorComponent state=dmg_editor />
-                        </div>
-                    </article>
-                </div>
-
-                <button
-                    class="button-primary"
-                    type="button"
-                    on:click=run_simulation
-                    prop:disabled=move || running.get()
-                >
-                    {move || if running.get() { "Running..." } else { "Run Simulation" }}
-                </button>
-
-                <StatsResultPanel running=running result=result error=error />
+                    <button
+                        class="g-button-action"
+                        type="button"
+                        on:click=run_simulation
+                        prop:disabled=move || running.get()
+                    >
+                        {move || if running.get() { "Running..." } else { "Run Simulation" }}
+                    </button>
+                </section>
             </section>
 
+            <aside class=style::stats_rail>
+                <StatsResultPanel running=running result=result error=error />
+            </aside>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "ssr")]
+    #[test]
+    fn stats_page_renders_both_mode_buttons() {
+        use leptos::prelude::*;
+
+        let owner = Owner::new();
+        owner.set();
+
+        let html = view! { <super::StatsPage /> }.to_html();
+
+        assert!(html.contains("To-hit"));
+        assert!(html.contains("Saving throw"));
+    }
+
+    #[test]
+    fn stats_styles_leave_each_editor_room_for_two_bench_columns() {
+        let styles = include_str!("stats.module.scss");
+
+        assert!(styles.contains(".stats-shell"));
+        assert!(styles.contains("grid-template-columns: minmax(0, 1.45fr) minmax(17rem, 0.55fr);"));
+        assert!(
+            styles.contains(
+                "grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr));"
+            )
+        );
+        assert!(styles.contains("--roll-editor-padding: 1rem;"));
     }
 }

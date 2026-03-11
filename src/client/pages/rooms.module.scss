@@ -1,0 +1,31 @@
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.status-tile {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 90%, transparent);
+}
+
+.status-tile strong {
+  font-size: 1.35rem;
+  font-family: var(--font-display);
+  line-height: 0.95;
+}
+
+.status-tile span {
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 860px) {
+  .status-grid {
+    grid-template-columns: 1fr;
+  }
+}

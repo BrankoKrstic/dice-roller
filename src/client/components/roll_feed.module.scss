@@ -1,85 +1,47 @@
-.roll-feed-jump {
-  white-space: nowrap;
-}
-
-.roll-feed-scroll {
-  max-height: min(62vh, 38rem);
-  overflow-y: auto;
+.room-top-grid {
   display: grid;
-  align-content: start;
-  gap: 0.6rem;
-  padding-right: 0.15rem;
 }
 
-.roll-feed-item {
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  background: var(--surface-strong);
-  padding: 0.7rem;
+.rooms-card {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.3rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.rooms-card-header {
   display: grid;
   gap: 0.45rem;
 }
 
-.roll-feed-item-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
-.roll-feed-item-user {
-  font-size: 0.93rem;
-}
-
-.roll-feed-item-total {
-  font-family: var(--font-mono);
-  font-weight: 800;
-  color: var(--accent);
-}
-
-.roll-feed-item-expression {
+.rooms-card-title {
   margin: 0;
-  font-size: 0.86rem;
-  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 2vw, 2.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
 }
 
-.roll-feed-item-meta {
+.rooms-card-summary {
   margin: 0;
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
+  color: var(--ink-muted);
+  line-height: 1.55;
 }
 
-.roll-feed-item-expression code {
-  font-family: var(--font-mono);
+.roll-feed-jump {
+  justify-self: start;
 }
 
-.roll-feed-item-details summary {
-  cursor: pointer;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  user-select: none;
-}
-
-.roll-feed-item-breakdown {
-  margin: 0.4rem 0 0;
-  border: 1px dashed var(--border);
-  border-radius: 0.62rem;
-  background: var(--surface-muted);
-  padding: 0.5rem 0.6rem;
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
-  overflow-x: auto;
-}
-
-.rooms-card {
-  border-radius: 1rem;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-  padding: 1rem;
+.roll-feed-scroll {
+  max-height: min(60vh, 36rem);
+  overflow-y: auto;
   display: grid;
-  gap: 0.85rem;
+  align-content: start;
+  gap: 0.7rem;
+  padding-right: 0.1rem;
 }
 
 .roll-feed-item-list {
@@ -87,19 +49,65 @@
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.65rem;
+  gap: 0.7rem;
 }
 
-.rooms-card-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
+.roll-feed-item {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
 }
 
-@media (max-width: 760px) {
-  .room-top-grid {
-    grid-template-columns: 1fr;
-  }
+.roll-feed-item-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.roll-feed-item-user {
+  font-size: 0.95rem;
+}
+
+.roll-feed-item-total {
+  font-family: var(--font-display);
+  font-size: 2.1rem;
+  line-height: 0.9;
+  color: var(--accent);
+}
+
+.roll-feed-item-expression,
+.roll-feed-item-meta {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.84rem;
+}
+
+.roll-feed-item-expression code,
+.roll-feed-item-meta {
+  font-family: var(--font-mono);
+}
+
+.roll-feed-item-details summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.roll-feed-item-breakdown {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel-muted) 90%, transparent);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.55;
 }

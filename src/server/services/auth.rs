@@ -127,7 +127,6 @@ impl AuthService {
             cookie_secure,
         };
         out.run_migrations().await?;
-        logging::log!("GOT HERE NOW");
 
         Ok(out)
     }

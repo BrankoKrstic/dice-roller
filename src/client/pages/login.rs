@@ -8,7 +8,7 @@ use crate::{
     shared::data::user::AuthUser,
 };
 
-stylance::import_style!(style, "auth.module.scss");
+stylance::import_style!(style, "login.module.scss");
 
 #[derive(Serialize)]
 struct LoginRequest {
@@ -78,71 +78,75 @@ pub(super) fn LoginPage() -> impl IntoView {
     };
 
     view! {
-        <section class=format!("{} {}", style::page, style::page_auth)>
-            <header class=style::page_header>
-                <h1 class=style::page_title>"Sign In"</h1>
-                <p class=style::page_subtitle>
-                    "Log in to access protected API routes and account-aware UI."
-                </p>
-            </header>
+        <section class=format!("g-page g-page-shell {}", style::page_auth)>
+            <div class=style::auth_layout>
+                <header class="g-panel g-panel-strong">
+                    <p class="g-section-label">"Account access"</p>
+                    <h1 class="g-section-title">"Return to your table."</h1>
+                    <p class="g-section-summary">
+                        "Sign in for protected room routes and account-aware history."
+                    </p>
+                </header>
 
-            <article class=style::auth_card>
-                <form class=style::auth_form on:submit=on_submit>
-                    <label class=style::form_label for="login-input">
-                        "Email"
-                    </label>
-                    <input
-                        id="login-input"
-                        class=style::text_input
-                        type="text"
-                        prop:value=move || login.get()
-                        on:input=move |event| login.set(event_target_value(&event))
-                        autocomplete="username"
-                        required=true
-                    />
+                <article class=style::auth_card>
+                    <p class="g-section-label">"Sign in"</p>
+                    <form class=style::auth_form on:submit=on_submit>
+                        <label class="g-field-label" for="login-input">
+                            "Email"
+                        </label>
+                        <input
+                            id="login-input"
+                            class="g-text-input"
+                            type="text"
+                            prop:value=move || login.get()
+                            on:input=move |event| login.set(event_target_value(&event))
+                            autocomplete="username"
+                            required=true
+                        />
 
-                    <label class=style::form_label for="login-password-input">
-                        "Password"
-                    </label>
-                    <input
-                        id="login-password-input"
-                        class=style::text_input
-                        type="password"
-                        prop:value=move || password.get()
-                        on:input=move |event| password.set(event_target_value(&event))
-                        autocomplete="current-password"
-                        required=true
-                    />
+                        <label class="g-field-label" for="login-password-input">
+                            "Password"
+                        </label>
+                        <input
+                            id="login-password-input"
+                            class="g-text-input"
+                            type="password"
+                            prop:value=move || password.get()
+                            on:input=move |event| password.set(event_target_value(&event))
+                            autocomplete="current-password"
+                            required=true
+                        />
 
-                    <button
-                        class="button-primary"
-                        type="submit"
-                        prop:disabled=move || submitting.get()
-                    >
-                        {move || if submitting.get() { "Signing in..." } else { "Sign In" }}
-                    </button>
+                        <button
+                            class="g-button-action"
+                            type="submit"
+                            prop:disabled=move || submitting.get()
+                        >
+                            {move || if submitting.get() { "Signing in..." } else { "Sign In" }}
+                        </button>
 
-                    {move || {
-                        error
-                            .get()
-                            .map(|message| {
-                                view! {
-                                    <p class=format!(
-                                        "{} {}",
-                                        style::auth_feedback,
-                                        style::auth_feedback_error,
-                                    )>{message}</p>
-                                }
-                            })
-                    }}
-                </form>
+                        {move || {
+                            error
+                                .get()
+                                .map(|message| {
+                                    view! {
+                                        <p class=format!(
+                                            "{} {}",
+                                            style::auth_feedback,
+                                            style::auth_feedback_error,
+                                        )>{message}</p>
+                                    }
+                                })
+                        }}
+                    </form>
 
-                <p class=style::auth_switch>
-                    "Need an account? " <a class=style::auth_switch_link href="/register">
-                        "Register"
-                    </a>
-                </p>
-            </article>
+                    <p class=style::auth_switch>
+                        "Need an account? " <a class=style::auth_switch_link href="/register">
+                            "Register"
+                        </a>
+                    </p>
+                </article>
+            </div>
         </section>
     }
 }

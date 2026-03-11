@@ -7,14 +7,16 @@ use leptos_router::{
 use crate::client::{
     context::auth::use_auth_context,
     pages::{
-        home::HomePage, login::LoginPage, not_found::NotFoundPage, register::RegisterPage,
-        rooms::RoomsPage, stats::StatsPage,
+        home::HomePage, login::LoginPage, not_found::NotFoundPage, reference::ReferencePage,
+        register::RegisterPage, rooms::RoomsPage, stats::StatsPage,
     },
 };
 
 mod home;
 mod login;
 mod not_found;
+mod reference;
+mod reference_content;
 mod register;
 mod room;
 mod rooms;
@@ -26,10 +28,11 @@ pub fn AppRoutes() -> impl IntoView {
     let auth = use_auth_context();
     view! {
         <Router>
-            <main class="app-main">
+            <main class="g-app-main">
                 <Routes fallback=NotFoundPage>
                     <Route path=path!("/") view=HomePage />
                     <Route path=path!("/chance") view=StatsPage />
+                    <Route path=path!("/reference") view=ReferencePage />
                     <Route path=path!("/login") view=LoginPage />
                     <Route path=path!("/register") view=RegisterPage />
                     <ProtectedRoute

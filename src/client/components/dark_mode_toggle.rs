@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::client::context::theme::{toggle_theme, use_theme_context, Theme};
+use crate::client::context::theme::{Theme, toggle_theme, use_theme_context};
 
 stylance::import_style!(style, "dark_mode_toggle.module.scss");
 
@@ -12,9 +12,9 @@ pub fn DarkModeToggle() -> impl IntoView {
             <input
                 type="checkbox"
                 id="themeSwitch"
-                value=move || context.get() == Theme::Light
+                prop:checked=move || context.get() == Theme::Dark
                 name="themeSwitch"
-                aria-label="Theme switch"
+                aria-label="Toggle theme"
                 on:change=move |_| toggle_theme()
             />
             <span class=style::slider>

@@ -1,0 +1,84 @@
+.reference-layout {
+  display: grid;
+  gap: var(--grid-gap);
+}
+
+.reference-hero {
+  gap: 0.85rem;
+}
+
+.reference-hero-summary {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--ink-muted);
+  line-height: 1.65;
+}
+
+.reference-hero-note {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.reference-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.reference-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.reference-entry {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 90%, transparent);
+}
+
+.reference-entry-syntax {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: var(--control-height-compact);
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-muted) 88%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.reference-entry-meaning {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.reference-entry-notes {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.reference-entry-notes li::marker {
+  color: var(--accent-warm);
+}
+
+@media (max-width: 860px) {
+  .reference-entry-grid {
+    grid-template-columns: 1fr;
+  }
+}

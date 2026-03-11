@@ -14,6 +14,12 @@ struct DiceDef {
     token: &'static str,
 }
 
+struct PresetDef {
+    label: &'static str,
+    note: &'static str,
+    expr: &'static str,
+}
+
 const DICE_DEFS: [DiceDef; 9] = [
     DiceDef {
         label: "d20",
@@ -50,6 +56,24 @@ const DICE_DEFS: [DiceDef; 9] = [
     DiceDef {
         label: "dF",
         token: "dF",
+    },
+];
+
+const PRESET_DEFS: [PresetDef; 3] = [
+    PresetDef {
+        label: "Initiative",
+        note: "Fast d20 check for who moves first.",
+        expr: "d20 + 3",
+    },
+    PresetDef {
+        label: "Greatsword",
+        note: "Heavy hit with a flat attack modifier.",
+        expr: "2d6 + 4",
+    },
+    PresetDef {
+        label: "Advantage",
+        note: "Quick launch for the most common combat edge.",
+        expr: "d20adv + 5",
     },
 ];
 
@@ -222,8 +246,8 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
             </div>
             <div class=style::quick_actions>
                 <button
-                    class="button-secondary"
-                    class:button-secondary-active=move || {
+                    class="g-button-mode"
+                    class:g-button-mode-active=move || {
                         matches!(builder.get().roll, RollType::Adv)
                     }
 
@@ -232,8 +256,8 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
                     d20adv
                 </button>
                 <button
-                    class="button-secondary"
-                    class:button-secondary-active=move || {
+                    class="g-button-mode"
+                    class:g-button-mode-active=move || {
                         matches!(builder.get().roll, RollType::Dis)
                     }
 
@@ -241,7 +265,7 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
                 >
                     d20dis
                 </button>
-                <button class="button-secondary" on:click=move |_| builder.write().clear()>
+                <button class="g-button-utility" on:click=move |_| builder.write().clear()>
                     Clear
                 </button>
 
@@ -254,39 +278,19 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
 fn ExpressionEditor(expr: RwSignal<String>) -> impl IntoView {
     view! {
         <div class=style::roll_editor_panel>
-            <label class=style::roll_editor_label for="expression-editor-input">
+            <label class="g-field-label" for="expression-editor-input">
                 "Expression"
             </label>
             <input
                 id="expression-editor-input"
                 type="text"
-                class=style::expression_editor_input
+                class=format!("g-text-input {}", style::expression_editor_input)
                 prop:value=move || expr.get()
                 on:input=move |event| expr.set(event_target_value(&event))
             />
-            <div class=style::quick_actions aria-label="Expression examples">
-                <button
-                    class="button-secondary"
-                    type="button"
-                    on:click=move |_| expr.set("2d10 + 1d6 + 5".to_string())
-                >
-                    "2d10 + 1d6 + 5"
-                </button>
-                <button
-                    class="button-secondary"
-                    type="button"
-                    on:click=move |_| expr.set("4d6kh3".to_string())
-                >
-                    "4d6kh3"
-                </button>
-                <button
-                    class="button-secondary"
-                    type="button"
-                    on:click=move |_| expr.set("2d6r<=3times2 + 1".to_string())
-                >
-                    "2d6r<=3times2 + 1"
-                </button>
-            </div>
+            <p class="g-result-hint">
+                "Paste exact notation here when the table already knows the command."
+            </p>
         </div>
     }
 }
@@ -313,26 +317,59 @@ impl EditorState {
             EditorMode::Expression => self.expr.get().to_string(),
         }
     }
+
+    fn apply_preset(&mut self, expr: &str) {
+        self.mode = EditorMode::Expression;
+        self.expr.set(expr.to_string());
+    }
+}
+
+#[component]
+fn PresetStrip(state: RwSignal<EditorState>) -> impl IntoView {
+    view! {
+        <section class=style::preset_section>
+            <p class="g-section-label">"Bench"</p>
+            <div class=style::preset_strip>
+                {PRESET_DEFS
+                    .iter()
+                    .map(|preset| {
+                        let expr = preset.expr;
+                        view! {
+                            <button
+                                class=style::preset_card
+                                type="button"
+                                on:click=move |_| state.update(|editor| editor.apply_preset(expr))
+                            >
+                                <span class=style::preset_card_title>{preset.label}</span>
+                                <p class=style::preset_card_note>{preset.note}</p>
+                                <code class=style::preset_card_code>{preset.expr}</code>
+                            </button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
+        </section>
+    }
 }
 
 #[component]
 pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
     view! {
-        <div class=style::roll_editor_mode_switch>
+        <div class="g-roll-editor-mode-switch">
             <button
                 on:click=move |_| { state.write().mode = EditorMode::Builder }
-                class=style::roll_editor_mode_pill
+                class="g-button-mode"
                 class=(
-                    style::roll_editor_mode_pill_active,
+                    "g-button-mode-active",
                     move || state.get().mode == EditorMode::Builder,
                 )
             >
-                "Dice Editor"
+                "Dice Bench"
             </button>
             <button
-                class=style::roll_editor_mode_pill
+                class="g-button-mode"
                 class=(
-                    style::roll_editor_mode_pill_active,
+                    "g-button-mode-active",
                     move || state.get().mode == EditorMode::Expression,
                 )
                 on:click=move |_| { state.write().mode = EditorMode::Expression }
@@ -350,15 +387,6 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
                 }
             }}
         </div>
-        <Show when=move || matches!(state.get().mode, EditorMode::Builder)>
-            <div class=style::expression_editor_preview>
-                <span class=style::expression_editor_preview_label>"Expression"</span>
-                <code class=style::expression_editor_preview_code>
-                    {move || state.get().builder.get().to_expr()}
-                </code>
-            </div>
-
-        </Show>
     }
 }
 
@@ -368,15 +396,70 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
 
     view! {
         <section class=style::roll_editor>
-            <EditorComponent state=state />
-            <button
-                class="button-primary"
-                type="button"
-                on:click=move |_| { on_roll.run(state.get().get_expr()) }
-            >
-                "Roll"
-            </button>
+            <div class=style::roll_editor_heading>
+                <p class="g-section-label">"Composer"</p>
+                <h1 class=style::roll_editor_title>"Compose the next throw."</h1>
+                <p class=style::roll_editor_summary>
+                    "Use the bench for tactile drafting or jump to raw notation when the table already knows the move."
+                </p>
+            </div>
 
+            <PresetStrip state=state />
+            <EditorComponent state=state />
+            <div class=style::roll_editor_footer>
+                <div class=style::roll_editor_preview>
+                    <span class="g-field-label">"Current expression"</span>
+                    <code class=style::roll_editor_preview_code>{move || state.get().get_expr()}</code>
+                    <p class=style::roll_editor_preview_note>
+                        "Need a reminder on modifiers, rerolls, or keep/drop syntax in the expression editor?"
+                    </p>
+                </div>
+
+                <div class=style::roll_editor_actions>
+                    <a class="g-button-ghost" href="/reference">
+                        "Open reference"
+                    </a>
+                    <button
+                        class="g-button-action"
+                        type="button"
+                        on:click=move |_| { on_roll.run(state.get().get_expr()) }
+                    >
+                        "Roll to ledger"
+                    </button>
+                </div>
+            </div>
         </section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "ssr")]
+    #[test]
+    fn editor_component_uses_expression_editor_copy() {
+        use leptos::prelude::*;
+
+        let owner = Owner::new();
+        owner.set();
+
+        let rendered =
+            view! { <super::EditorComponent state=RwSignal::new(super::EditorState::default()) /> };
+        let html = rendered.to_html();
+
+        assert!(html.contains("Dice Bench"));
+        assert!(html.contains("Expression Editor"));
+        assert!(!html.contains("Command Strip"));
+    }
+
+    #[test]
+    fn dice_bench_styles_keep_cards_wide_enough_for_controls() {
+        let styles = include_str!("roll_editor.module.scss");
+
+        assert!(styles.contains(
+            "grid-template-columns: repeat(auto-fit, minmax(var(--die-card-min-width, 150px), 1fr));"
+        ));
+        assert!(
+            styles.contains("grid-template-columns: minmax(2.2rem, 1fr) auto minmax(2.2rem, 1fr);")
+        );
     }
 }

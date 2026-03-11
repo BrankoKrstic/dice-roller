@@ -12,3 +12,4 @@ target/
 style/bundle.scss
 .env
 :local:
+.worktrees/

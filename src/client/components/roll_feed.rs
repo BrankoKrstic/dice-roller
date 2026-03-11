@@ -49,10 +49,14 @@ pub fn RollFeed(
         <section class=style::room_top_grid>
             <article class=style::rooms_card>
                 <div class=style::rooms_card_header>
-                    <h2 style::rooms_card_title>"Roll Feed"</h2>
+                    <p class="g-section-label">"Activity"</p>
+                    <h2 class=style::rooms_card_title>"Room Activity"</h2>
+                    <p class=style::rooms_card_summary>
+                        "Recent throws, totals, and breakdowns stack here so the table can read the room at a glance."
+                    </p>
                     <Show when=move || unread_rolls.get() != 0>
                         <button
-                            class=format!("button-secondary {}", style::roll_feed_jump)
+                            class=format!("g-button-utility {}", style::roll_feed_jump)
                             type="button"
                             on:click=move |_| {
                                 scroll_to_bottom(&roll_feed_ref);
@@ -76,12 +80,17 @@ pub fn RollFeed(
                     on:scroll=on_roll_feed_scroll
                 >
                     <Show when=move || loading_more.get()>
-                        <p class="result-card__hint">"Loading older rolls..."</p>
+                        <p class="g-result-hint">"Loading earlier entries..."</p>
                     </Show>
                     {move || {
                         let roll_count = feed.get().rolls.len();
                         if roll_count == 0 && !feed.get().has_more {
-                            view! { <p class="result-card__hint">"No rolls yet."</p> }.into_any()
+                            view! {
+                                <p class="g-result-hint">
+                                    "No throws recorded yet. Your next roll becomes the first line in the ledger."
+                                </p>
+                            }
+                                .into_any()
                         } else {
                             view! {
                                 <ul class=style::roll_feed_item_list>
@@ -118,7 +127,7 @@ pub fn RollFeed(
                     }}
 
                     <Show when=move || { feed.get().has_more && !loading_more.get() }>
-                        <p class="result-card__hint">"Scroll up to load older rolls."</p>
+                        <p class="g-result-hint">"Scroll upward to pull earlier room activity."</p>
                     </Show>
                 </div>
             </article>

@@ -19,6 +19,7 @@ mod reference;
 mod reference_content;
 mod register;
 mod room;
+mod room_stubs;
 mod rooms;
 mod stats;
 

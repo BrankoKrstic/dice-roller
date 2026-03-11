@@ -1,42 +1,182 @@
-.room-hero {
-  position: relative;
+.room-shell {
+  gap: 1rem;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 30%),
+    var(--panel-strong);
+}
+
+.room-layout {
+  align-items: start;
+}
+
+.room-main,
+.room-rail,
+.room-header-top,
+.room-header,
+.presence-card,
+.pending-card,
+.not-found-card,
+.roster-identity {
   display: grid;
+}
+
+.room-main,
+.room-rail {
+  gap: var(--grid-gap);
+}
+
+.room-header,
+.presence-card,
+.pending-card,
+.not-found-card {
   gap: 0.85rem;
-  padding: clamp(1.1rem, 2vw, 1.55rem);
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-panel);
+}
+
+.room-header {
+  position: relative;
   overflow: hidden;
 }
 
-.room-hero::after {
+.room-header::after {
   content: "";
   position: absolute;
-  inset: auto -8% 0 42%;
+  inset: auto 0 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+}
+
+.room-header-top {
+  gap: 0.55rem;
 }
 
 .room-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2.2rem, 5vw, 4.8rem);
+  font-size: clamp(2rem, 4vw, 3.5rem);
   line-height: 0.94;
   letter-spacing: -0.04em;
-  max-width: 12ch;
 }
 
 .room-summary {
   margin: 0;
-  max-width: 46rem;
+  max-width: 44rem;
   color: var(--ink-muted);
-  font-size: 1.03rem;
-  line-height: 1.68;
+  line-height: 1.62;
 }
 
-@media (max-width: 760px) {
+.room-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.room-id-badge,
+.room-note-badge,
+.roster-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.72rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+}
+
+.room-id-badge {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-muted) 85%, transparent);
+  color: var(--ink-soft);
+}
+
+.room-note-badge {
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent);
+  color: var(--ink);
+}
+
+.presence-card,
+.pending-card {
+  padding: clamp(1rem, 2vw, 1.2rem);
+}
+
+.pending-card {
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+}
+
+.presence-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2vw, 1.85rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.presence-summary,
+.presence-empty,
+.roster-note {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.roster-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.roster-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: start;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
+}
+
+.roster-row[data-tone="pending"] {
+  background: color-mix(in srgb, var(--panel-muted) 84%, transparent);
+  border-style: dashed;
+}
+
+.roster-identity {
+  gap: 0.3rem;
+}
+
+.roster-name {
+  font-size: 0.96rem;
+}
+
+.roster-status {
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper-strong) 90%, transparent);
+  color: var(--ink-soft);
+}
+
+.not-found-card {
+  min-height: 18rem;
+  align-content: center;
+}
+
+@media (max-width: 900px) {
+  .room-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
   .room-title {
-    font-size: clamp(1.9rem, 10vw, 3.2rem);
+    font-size: clamp(1.75rem, 10vw, 2.8rem);
+  }
+
+  .roster-row {
+    grid-template-columns: 1fr;
   }
 }

@@ -140,7 +140,7 @@ pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
         },
         RoomStub {
             room_title: "Copper Annex".to_string(),
-            room_id: "Copper Annex".to_string(),
+            room_id: "copper-annex".to_string(),
             room_note: "Approval queue open".to_string(),
             live_users: vec![
                 roster_entry("Pax Rowan", "Setting the next clue reveal.", Some("Host")),
@@ -274,5 +274,13 @@ mod tests {
     #[test]
     fn find_room_by_id_returns_none_for_unknown_room() {
         assert!(find_room_by_id("unknown-room").is_none());
+    }
+
+    #[test]
+    fn find_room_by_id_matches_canonical_seeded_room_id() {
+        let room = find_room_by_id("  copper-annex  ").expect("expected seeded room");
+
+        assert_eq!(room.room_id, "copper-annex");
+        assert_eq!(room.room_title, "Copper Annex");
     }
 }

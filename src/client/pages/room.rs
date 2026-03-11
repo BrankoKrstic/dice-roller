@@ -242,4 +242,11 @@ mod tests {
         assert!(html.contains("unknown room"));
         assert!(html.contains("href=\"/rooms\""));
     }
+
+    #[test]
+    fn room_page_styles_establish_split_layout() {
+        let styles = include_str!("room.module.scss");
+
+        assert!(styles.contains(".room-layout {\n  display: grid;"));
+    }
 }

@@ -121,7 +121,7 @@ pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
                         "room-moonlit-ledger-roll-1",
                         "aria-vale",
                         "Aria Vale",
-                        "2m ago",
+                        "2026-03-11 19:02:00",
                         "d20 + 4",
                         19,
                         "d20 + 4\n15 + 4 = 19",
@@ -130,7 +130,7 @@ pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
                         "room-moonlit-ledger-roll-2",
                         "mira-quill",
                         "Mira Quill",
-                        "just now",
+                        "2026-03-11 19:04:00",
                         "2d6 + 2",
                         14,
                         "2d6 + 2\n[6, 6] + 2 = 14",
@@ -155,7 +155,7 @@ pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
                     "room-north-gate-audit-roll-1",
                     "sable-knox",
                     "Sable Knox",
-                    "8m ago",
+                    "2026-03-11 18:56:00",
                     "d20 + 1",
                     11,
                     "d20 + 1\n10 + 1 = 11",
@@ -189,7 +189,7 @@ pub(crate) fn seeded_rooms() -> Vec<RoomStub> {
                     "room-copper-annex-roll-1",
                     "pax-rowan",
                     "Pax Rowan",
-                    "5m ago",
+                    "2026-03-11 18:59:00",
                     "d20adv + 3",
                     17,
                     "d20adv + 3\n[14, 9] + 3 = 17",
@@ -361,5 +361,15 @@ mod tests {
                 .id,
             "room-moonlit-ledger-roll-2"
         );
+    }
+
+    #[test]
+    fn seeded_room_activity_uses_formatted_timestamps() {
+        for room in seeded_rooms() {
+            for roll in room.activity_feed.rolls {
+                assert!(roll.ts.contains('-'));
+                assert!(roll.ts.contains(':'));
+            }
+        }
     }
 }

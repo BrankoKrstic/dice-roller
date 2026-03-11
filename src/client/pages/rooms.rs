@@ -203,8 +203,12 @@ mod tests {
         let create_button = element_tag(&html, "id=\"rooms-create-room\"");
         let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
 
+        assert!(html.contains("Start a room"));
+        assert!(html.contains("Create a room"));
+        assert!(html.contains("Creation wiring arrives in a later pass. Nothing is persisted yet."));
         assert!(create_button.contains("disabled"));
         assert!(html.contains("Join by room ID"));
+        assert!(html.contains("Active tables"));
         assert!(html.contains("Joined rooms"));
         assert!(html.contains("<form"));
         assert!(join_button.contains("disabled"));
@@ -224,9 +228,11 @@ mod tests {
     #[test]
     fn rooms_page_renders_empty_state_when_no_joined_rooms() {
         let html = render_rooms_page_html(Vec::new(), "");
+        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
 
         assert!(html.contains("No joined rooms yet."));
         assert!(html.contains("Use the create or join controls above once room wiring is ready."));
+        assert!(join_button.contains("disabled"));
     }
 
     #[test]

@@ -123,23 +123,21 @@ fn room_page_content(room: Option<RoomStub>, attempted_room_id: &str) -> impl In
                     }
                     None => {
                         view! {
-                            <div class=format!("g-page-shell-split {}", style::room_layout)>
-                                <section class=style::room_main>
-                                    <section class=format!(
-                                        "g-panel g-panel-strong {}",
-                                        style::not_found_card,
-                                    )>
-                                        <p class="g-section-label">"Room lookup"</p>
-                                        <h1 class=style::room_title>"Room not found."</h1>
-                                        <p class=style::room_summary>
-                                            {format!(
-                                                "No local room stub matches \"{}\" yet. Try another room ID or head back to the active tables board.",
-                                                attempted_room_id
-                                            )}
-                                        </p>
-                                    </section>
+                            <section class=style::room_main>
+                                <section class=format!(
+                                    "g-panel g-panel-strong {}",
+                                    style::not_found_card,
+                                )>
+                                    <p class="g-section-label">"Room lookup"</p>
+                                    <h1 class=style::room_title>"Room not found."</h1>
+                                    <p class=style::room_summary>
+                                        {format!(
+                                            "No local room stub matches \"{}\" yet. Try another room ID or head back to the active tables board.",
+                                            attempted_room_id
+                                        )}
+                                    </p>
                                 </section>
-                            </div>
+                            </section>
                         }
                             .into_any()
                     }
@@ -247,6 +245,8 @@ mod tests {
     fn room_page_styles_establish_split_layout() {
         let styles = include_str!("room.module.scss");
 
-        assert!(styles.contains(".room-layout {\n  display: grid;"));
+        assert!(styles.contains(".room-layout {"));
+        assert!(styles.contains("display: grid;"));
+        assert!(styles.contains("gap: var(--grid-gap);"));
     }
 }

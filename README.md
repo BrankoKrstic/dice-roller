@@ -1,28 +1,32 @@
 # dice-roller
 
-A Leptos + Axum web app for dice expression rolling with a custom dice DSL.
+A Leptos + Axum web app for dice rolling, room-focused play, authentication, and a custom dice DSL.
 
 ## Current status
 
 Implemented so far:
-- Dice roller UI with two input modes (builder and expression)
+- Home roller with Dice Bench and Expression Editor input modes
 - Builder mode includes clickable dice cards and adv/dis shortcuts
-- Expression mode supports free-form DSL input
-- Local roll feed with timestamp, total, expression, and roll breakdown
-- `/chance` page with calculator UI controls (simulation backend not wired yet)
+- Local roll feeds with timestamp, total, expression, and roll breakdown
+- `/chance` Probability Ledger with a worker-backed simulation flow
+- `/reference` Expression Editor Guide sourced from the parser-supported syntax
+- Email/password auth endpoints plus login/register pages and cookie-backed session checks
+- Protected `/rooms` board with seeded room summaries and room ID join routing
+- Protected `/room/:roomId` detail view with seeded activity, live/pending roster panels, and local append-only room rolls
 - Full lexer/parser/interpreter pipeline for the dice DSL with unit tests
 - SSR server + hydration setup via `cargo-leptos`
 
-Not implemented yet:
-- Server API endpoints (files exist but are currently empty)
-- Persistent storage / rooms / auth pages (files exist but are currently placeholders)
-- Real-time multiplayer roll feed
+Still stubbed or local-only:
+- Room creation, membership validation, approval actions, and persistence
+- Real-time multiplayer sync across clients
+- Room activity and roster data beyond the local seeded room stubs
 
 ## Tech stack
 
 - Rust 2024
 - Leptos 0.8 (`leptos`, `leptos_router`, `leptos_meta`, `leptos_axum`)
 - Axum 0.8 (SSR server)
+- libSQL / Turso-compatible storage
 - Stylance + SCSS modules (component styling)
 - `cargo-leptos` for SSR/hydrate build flow
 - Playwright scaffold for end-to-end tests
@@ -30,7 +34,12 @@ Not implemented yet:
 ## Routes
 
 - `/` -> Roller page
-- `/chance` -> Chance calculator page (UI scaffold)
+- `/chance` -> Probability Ledger simulation page
+- `/reference` -> Expression Editor syntax guide
+- `/login` -> Login page
+- `/register` -> Registration page
+- `/rooms` -> Protected rooms board
+- `/room/:roomId` -> Protected room detail page
 - Any other path -> Not found page
 
 ## Dice DSL (supported today)
@@ -94,7 +103,7 @@ cargo test
 ```
 
 Current status in this workspace:
-- 31 Rust tests passing (DSL lexer/parser/interpreter coverage)
+- 43 Rust tests passing
 
 ## Production build
 
@@ -124,6 +133,21 @@ export LEPTOS_SITE_ROOT="site"
 export LEPTOS_SITE_PKG_DIR="pkg"
 export LEPTOS_SITE_ADDR="127.0.0.1:3000"
 export LEPTOS_RELOAD_PORT="3001"
+export TURSO_DATABASE_URL="/absolute/path/to/dice-roller.db"
+export JWT_SECRET="replace-me"
+export AUTH_COOKIE_SECURE="false"
 ```
+
+Optional runtime env vars:
+
+```bash
+export TURSO_AUTH_TOKEN="required for remote libsql/turso URLs"
+export JWT_EXP_SECONDS="604800"
+```
+
+Notes:
+- `TURSO_DATABASE_URL` can point at a local SQLite/libSQL file or a remote `libsql://`/`https://` URL.
+- `TURSO_AUTH_TOKEN` is only required for remote database URLs.
+- Set `AUTH_COOKIE_SECURE="true"` when serving over HTTPS.
 
 Then run the server binary.

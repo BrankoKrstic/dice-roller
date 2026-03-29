@@ -5,7 +5,6 @@ use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::Cookie;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
-use leptos::logging;
 use leptos_use::SameSite;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

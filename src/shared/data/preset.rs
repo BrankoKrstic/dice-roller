@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::shared::data::user::UserId;
-
 #[derive(Serialize, Deserialize)]
 pub struct PresetRequest {
     pub name: String,

@@ -895,6 +895,7 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "dotenvy",
+ "futures",
  "getrandom 0.4.2",
  "jsonwebtoken",
  "leptos",

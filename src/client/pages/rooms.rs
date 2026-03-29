@@ -1,6 +1,6 @@
 use leptos::{ev::Event, prelude::*};
 
-use super::room_stubs::{join_target_from_input, room_route, room_summaries, RoomSummary};
+use super::room_stubs::{RoomSummary, join_target_from_input, room_route, room_summaries};
 
 stylance::import_style!(style, "rooms.module.scss");
 
@@ -25,7 +25,10 @@ fn live_user_preview(room: &RoomSummary) -> String {
         [one] => format!("{one} is already at the table."),
         [one, two] => format!("{one} and {two} are already at the table."),
         [one, two, rest @ ..] => {
-            format!("{one}, {two}, and {} more are already at the table.", rest.len())
+            format!(
+                "{one}, {two}, and {} more are already at the table.",
+                rest.len()
+            )
         }
     }
 }
@@ -180,7 +183,7 @@ mod tests {
 
     use crate::client::pages::room_stubs::room_summaries;
 
-    use super::{rooms_page_content, RoomSummary};
+    use super::{RoomSummary, rooms_page_content};
 
     fn render_rooms_page_html(rooms: Vec<RoomSummary>, join_input: &str) -> String {
         let owner = Owner::new();
@@ -205,7 +208,9 @@ mod tests {
 
         assert!(html.contains("Start a room"));
         assert!(html.contains("Create a room"));
-        assert!(html.contains("Creation wiring arrives in a later pass. Nothing is persisted yet."));
+        assert!(
+            html.contains("Creation wiring arrives in a later pass. Nothing is persisted yet.")
+        );
         assert!(create_button.contains("disabled"));
         assert!(html.contains("Join by room ID"));
         assert!(html.contains("Active tables"));

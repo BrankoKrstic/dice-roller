@@ -37,6 +37,10 @@ impl Db {
         let db_url = env::var("TURSO_DATABASE_URL")
             .map_err(|_| DbError::MissingEnv("TURSO_DATABASE_URL"))?;
 
+        Self::from_url(db_url).await
+    }
+
+    pub(crate) async fn from_url(db_url: String) -> Result<Self, DbError> {
         let db = if is_remote_database_url(&db_url) {
             let db_token = env::var("TURSO_AUTH_TOKEN")
                 .map_err(|_| DbError::MissingEnv("TURSO_AUTH_TOKEN"))?;
@@ -52,9 +56,14 @@ impl Db {
         };
 
         let db = Self { db: Arc::new(db) };
+        let conn = db.connection()?;
+        conn.execute("PRAGMA foreign_keys = ON", ())
+            .await
+            .map_err(|error| DbError::Database(error.to_string()))?;
 
         Ok(db)
     }
+
     pub fn connection(&self) -> Result<Connection, DbError> {
         self.db
             .connect()

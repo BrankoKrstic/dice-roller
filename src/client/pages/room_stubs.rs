@@ -343,7 +343,10 @@ mod tests {
         local_feed.add_roll(appended_roll);
 
         assert_eq!(local_feed.rolls.len(), seeded_roll_count + 1);
-        assert_eq!(local_feed.rolls.last().expect("expected appended roll").id, appended_roll_id);
+        assert_eq!(
+            local_feed.rolls.last().expect("expected appended roll").id,
+            appended_roll_id
+        );
         assert_eq!(
             local_feed.rolls.first().expect("expected seeded roll").id,
             "room-moonlit-ledger-roll-1"
@@ -354,7 +357,10 @@ mod tests {
             .find(|room| room.room_id == "moonlit-ledger")
             .expect("expected seeded room");
 
-        assert_eq!(refreshed_seeded_room.activity_feed.rolls.len(), seeded_roll_count);
+        assert_eq!(
+            refreshed_seeded_room.activity_feed.rolls.len(),
+            seeded_roll_count
+        );
         assert_eq!(
             refreshed_seeded_room
                 .activity_feed

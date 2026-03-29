@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
 use super::room_stubs::{
-    build_local_room_roll, find_room_by_id, normalize_room_id_input, RoomRosterEntry, RoomStub,
+    RoomRosterEntry, RoomStub, build_local_room_roll, find_room_by_id, normalize_room_id_input,
 };
 use crate::{
     client::components::{roll_editor::RollEditor, roll_feed::RollFeed},
@@ -219,7 +219,9 @@ mod tests {
         assert!(html.contains("d20 + 4"));
 
         let header_index = html.find("Moonlit Ledger").expect("expected room header");
-        let editor_index = html.find("Compose the next throw.").expect("expected roll editor");
+        let editor_index = html
+            .find("Compose the next throw.")
+            .expect("expected roll editor");
         let feed_index = html.find("Room Activity").expect("expected room activity");
         let rail_index = html.find("Live in room").expect("expected live roster");
 

@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::client::components::preset_editor::PresetEditor;
+
 stylance::import_style!(style, "roll_editor.module.scss");
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -12,12 +14,6 @@ enum EditorMode {
 struct DiceDef {
     label: &'static str,
     token: &'static str,
-}
-
-struct PresetDef {
-    label: &'static str,
-    note: &'static str,
-    expr: &'static str,
 }
 
 const DICE_DEFS: [DiceDef; 9] = [
@@ -56,24 +52,6 @@ const DICE_DEFS: [DiceDef; 9] = [
     DiceDef {
         label: "dF",
         token: "dF",
-    },
-];
-
-const PRESET_DEFS: [PresetDef; 3] = [
-    PresetDef {
-        label: "Initiative",
-        note: "Fast d20 check for who moves first.",
-        expr: "d20 + 3",
-    },
-    PresetDef {
-        label: "Greatsword",
-        note: "Heavy hit with a flat attack modifier.",
-        expr: "2d6 + 4",
-    },
-    PresetDef {
-        label: "Advantage",
-        note: "Quick launch for the most common combat edge.",
-        expr: "d20adv + 5",
     },
 ];
 
@@ -318,37 +296,9 @@ impl EditorState {
         }
     }
 
-    fn apply_preset(&mut self, expr: &str) {
+    fn load_expression(&mut self, expr: &str) {
         self.mode = EditorMode::Expression;
         self.expr.set(expr.to_string());
-    }
-}
-
-#[component]
-fn PresetStrip(state: RwSignal<EditorState>) -> impl IntoView {
-    view! {
-        <section class=style::preset_section>
-            <p class="g-section-label">"Bench"</p>
-            <div class=style::preset_strip>
-                {PRESET_DEFS
-                    .iter()
-                    .map(|preset| {
-                        let expr = preset.expr;
-                        view! {
-                            <button
-                                class=style::preset_card
-                                type="button"
-                                on:click=move |_| state.update(|editor| editor.apply_preset(expr))
-                            >
-                                <span class=style::preset_card_title>{preset.label}</span>
-                                <p class=style::preset_card_note>{preset.note}</p>
-                                <code class=style::preset_card_code>{preset.expr}</code>
-                            </button>
-                        }
-                    })
-                    .collect_view()}
-            </div>
-        </section>
     }
 }
 
@@ -393,6 +343,7 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
 #[component]
 pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
     let state = RwSignal::new(EditorState::default());
+    let current_expression = Signal::derive(move || state.get().get_expr());
 
     view! {
         <section class=style::roll_editor>
@@ -404,7 +355,12 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
                 </p>
             </div>
 
-            <PresetStrip state=state />
+            <PresetEditor
+                expression=current_expression
+                on_select=Callback::new(move |expr: String| {
+                    state.update(|editor| editor.load_expression(&expr));
+                })
+            />
             <EditorComponent state=state />
             <div class=style::roll_editor_footer>
                 <div class=style::roll_editor_preview>
@@ -461,5 +417,20 @@ mod tests {
         assert!(
             styles.contains("grid-template-columns: minmax(2.2rem, 1fr) auto minmax(2.2rem, 1fr);")
         );
+    }
+
+    #[test]
+    fn selecting_a_preset_switches_to_expression_mode() {
+        use leptos::prelude::*;
+
+        let owner = Owner::new();
+        owner.set();
+
+        let mut state = super::EditorState::default();
+
+        state.load_expression("d20adv + 5");
+
+        assert_eq!(state.mode, super::EditorMode::Expression);
+        assert_eq!(state.get_expr(), "d20adv + 5");
     }
 }

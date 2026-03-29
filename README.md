@@ -11,13 +11,14 @@ Implemented so far:
 - `/chance` Probability Ledger with a worker-backed simulation flow
 - `/reference` Expression Editor Guide sourced from the parser-supported syntax
 - Email/password auth endpoints plus login/register pages and cookie-backed session checks
+- Server-side room persistence service with migrations for rooms, memberships, rolls, and room-roll links
 - Protected `/rooms` board with seeded room summaries and room ID join routing
 - Protected `/room/:roomId` detail view with seeded activity, live/pending roster panels, and local append-only room rolls
 - Full lexer/parser/interpreter pipeline for the dice DSL with unit tests
 - SSR server + hydration setup via `cargo-leptos`
 
 Still stubbed or local-only:
-- Room creation, membership validation, approval actions, and persistence
+- Room creation, membership validation, approval actions, and roll persistence routes/UI wiring
 - Real-time multiplayer sync across clients
 - Room activity and roster data beyond the local seeded room stubs
 

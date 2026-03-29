@@ -3,7 +3,7 @@ use leptos::config::LeptosOptions;
 
 use crate::server::{
     api::{auth::create_auth_router, router::create_protected_router},
-    services::{auth::AuthService, presets::PresetService},
+    services::{auth::AuthService, presets::PresetService, rooms::RoomService},
 };
 
 pub mod auth;
@@ -16,6 +16,7 @@ pub struct AppState {
     pub leptos_options: LeptosOptions,
     pub auth: AuthService,
     pub presets: PresetService,
+    pub rooms: RoomService,
 }
 
 pub fn create_router(auth: AuthService) -> Router<AppState> {

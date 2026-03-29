@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::dsl::lexer::{Lexer, LexerError, Token, TokenKind};
@@ -29,7 +30,7 @@ pub struct Parser<'input> {
     lexer: Lexer<'input>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiceKind {
     D4,
     D6,
@@ -55,13 +56,13 @@ impl DiceKind {
         }
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SortOrder {
     Asc,
     Dsc,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiceModifier {
     Explode {
         condition: Condition,
@@ -86,7 +87,7 @@ pub enum DiceModifier {
     Max(i32),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModifierOp {
     Greater,
     Less,
@@ -97,7 +98,7 @@ pub enum ModifierOp {
     Highest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Condition {
     pub(crate) target: u32,
     pub(crate) op: ModifierOp,
@@ -109,18 +110,18 @@ impl Condition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dice {
     pub(crate) count: u32,
     pub(crate) kind: DiceKind,
     pub(crate) modifiers: Vec<DiceModifier>,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnaryOp {
     Negate,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BinaryOp {
     Add,
     Subtract,
@@ -128,7 +129,7 @@ pub enum BinaryOp {
     Divide,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ast {
     Number(u32),
     Dice(Dice),

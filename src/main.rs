@@ -7,7 +7,7 @@ async fn main() {
     use dice_roller::server::{api::AppState, db::Db};
     use dice_roller::{
         app::shell,
-        server::services::{auth::AuthService, presets::PresetService},
+        server::services::{auth::AuthService, presets::PresetService, rooms::RoomService},
     };
     use leptos::logging::log;
     use leptos::prelude::*;
@@ -23,13 +23,15 @@ async fn main() {
 
     let db = Db::from_env().await.unwrap();
     let auth = AuthService::from_env(db.clone()).await.unwrap();
-    let presets = PresetService::from_env(db).await.unwrap();
+    let presets = PresetService::from_env(db.clone()).await.unwrap();
+    let rooms = RoomService::from_env(db).await.unwrap();
     let router = create_router(auth.clone());
 
     let state = AppState {
         leptos_options: leptos_options.clone(),
         auth: auth.clone(),
         presets: presets.clone(),
+        rooms: rooms.clone(),
     };
 
     let app = Router::<AppState>::new()

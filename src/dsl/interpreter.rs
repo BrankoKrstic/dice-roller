@@ -1,4 +1,5 @@
 use rand::{RngExt, rngs::ThreadRng};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::dsl::parser::{
@@ -30,7 +31,7 @@ pub struct Interpreter<R> {
     rng: R,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiceRoll {
     dropped: bool,
     result: i64,
@@ -42,7 +43,7 @@ impl std::fmt::Display for DiceRoll {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EvalResult {
     Number {
         value: i64,

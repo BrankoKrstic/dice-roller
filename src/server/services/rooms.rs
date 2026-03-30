@@ -6,12 +6,16 @@ use crate::{
     server::db::{Db, DbError},
     shared::data::{
         room::{
-            CreateRoomRequest, Room, RoomId, RoomMembership, RoomMembershipStatus, RoomRoll,
-            RoomRollId, RoomRollRequest,
+            ActiveRoomMember, CreateRoomRequest, Room, RoomId, RoomMemberSummary,
+            RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId, RoomRollPage,
+            RoomRollRequest, RoomRollSummary, RoomStreamSnapshot,
         },
-        user::{Email, UserId},
+        user::{Email, UserId, Username},
     },
 };
+
+pub const DEFAULT_ROOM_ROLL_PAGE_LIMIT: usize = 50;
+pub const MAX_ROOM_ROLL_PAGE_LIMIT: usize = 100;
 
 #[derive(Debug, Error)]
 pub enum RoomError {
@@ -64,6 +68,12 @@ impl From<libsql::Error> for RoomError {
 #[derive(Clone, Serialize)]
 pub struct RoomErrorResponse {
     error: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoomReadAccess {
+    pub room: Room,
+    pub can_manage_members: bool,
 }
 
 impl From<RoomError> for (StatusCode, Json<RoomErrorResponse>) {
@@ -445,6 +455,75 @@ impl RoomService {
 
         Ok(roll)
     }
+
+    pub async fn authorize_room_read(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+    ) -> Result<RoomReadAccess, RoomError> {
+        let conn = self.db.connection()?;
+        authorize_room_read(&conn, viewer_id, room_id).await
+    }
+
+    pub async fn get_room_stream_snapshot(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+        active_members: Vec<ActiveRoomMember>,
+        roll_limit: usize,
+    ) -> Result<RoomStreamSnapshot, RoomError> {
+        let conn = self.db.connection()?;
+        let access = authorize_room_read(&conn, viewer_id, room_id).await?;
+        let pending_members = if access.can_manage_members {
+            fetch_member_summaries_by_status(&conn, room_id, RoomMembershipStatus::Pending).await?
+        } else {
+            Vec::new()
+        };
+        let recent_rolls =
+            fetch_room_roll_page(&conn, room_id, None, clamp_room_roll_page_limit(roll_limit))
+                .await?;
+
+        Ok(RoomStreamSnapshot {
+            room: access.room,
+            can_manage_members: access.can_manage_members,
+            active_members,
+            pending_members,
+            recent_rolls,
+        })
+    }
+
+    pub async fn list_pending_members_for_reader(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+    ) -> Result<Vec<RoomMemberSummary>, RoomError> {
+        let conn = self.db.connection()?;
+        let access = authorize_room_read(&conn, viewer_id, room_id).await?;
+        if !access.can_manage_members {
+            return Ok(Vec::new());
+        }
+
+        fetch_member_summaries_by_status(&conn, room_id, RoomMembershipStatus::Pending).await
+    }
+
+    pub async fn list_room_rolls(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+        before_id: Option<RoomRollId>,
+        limit: usize,
+    ) -> Result<RoomRollPage, RoomError> {
+        let conn = self.db.connection()?;
+        authorize_room_read(&conn, viewer_id, room_id).await?;
+
+        fetch_room_roll_page(
+            &conn,
+            room_id,
+            before_id,
+            clamp_room_roll_page_limit(limit),
+        )
+        .await
+    }
 }
 
 async fn require_room(conn: &libsql::Connection, room_id: RoomId) -> Result<Room, RoomError> {
@@ -464,6 +543,39 @@ async fn require_room_creator(
     }
 
     Ok(room)
+}
+
+async fn authorize_room_read(
+    conn: &libsql::Connection,
+    viewer_id: UserId,
+    room_id: RoomId,
+) -> Result<RoomReadAccess, RoomError> {
+    let room = require_room(conn, room_id).await?;
+    if room.creator_id == viewer_id {
+        return Ok(RoomReadAccess {
+            room,
+            can_manage_members: true,
+        });
+    }
+
+    match fetch_membership(conn, room_id, viewer_id).await? {
+        Some(RoomMembership {
+            status: RoomMembershipStatus::Joined,
+            ..
+        }) => Ok(RoomReadAccess {
+            room,
+            can_manage_members: false,
+        }),
+        Some(RoomMembership {
+            status: RoomMembershipStatus::Pending,
+            ..
+        }) => Err(RoomError::MembershipPending),
+        Some(RoomMembership {
+            status: RoomMembershipStatus::Kicked,
+            ..
+        }) => Err(RoomError::MembershipBlocked),
+        None => Err(RoomError::MembershipRequired),
+    }
 }
 
 async fn fetch_room(conn: &libsql::Connection, room_id: RoomId) -> Result<Option<Room>, RoomError> {
@@ -536,6 +648,120 @@ async fn find_user_id_by_email(
     };
 
     Ok(Some(UserId::new(row.get::<i64>(0)?)))
+}
+
+async fn fetch_member_summaries_by_status(
+    conn: &libsql::Connection,
+    room_id: RoomId,
+    status: RoomMembershipStatus,
+) -> Result<Vec<RoomMemberSummary>, RoomError> {
+    let mut rows = conn
+        .query(
+            "SELECT m.user_id, u.username, m.status
+            FROM members m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.room_id = ?1 AND m.status = ?2
+            ORDER BY m.created_at ASC, m.user_id ASC",
+            (room_id.into_inner(), status.as_str()),
+        )
+        .await?;
+
+    let mut members = Vec::new();
+    while let Some(row) = rows.next().await? {
+        let status = row.get::<String>(2)?;
+        let Some(status) = RoomMembershipStatus::from_db(status.as_str()) else {
+            return Err(RoomError::Database(DbError::Database(
+                "Invalid room membership status in database".to_string(),
+            )));
+        };
+
+        members.push(RoomMemberSummary {
+            user_id: UserId::new(row.get::<i64>(0)?),
+            username: Username::new(row.get::<String>(1)?),
+            status,
+        });
+    }
+
+    Ok(members)
+}
+
+async fn fetch_room_roll_page(
+    conn: &libsql::Connection,
+    room_id: RoomId,
+    before_id: Option<RoomRollId>,
+    limit: usize,
+) -> Result<RoomRollPage, RoomError> {
+    let query_limit = i64::try_from(limit.saturating_add(1))
+        .map_err(|_| RoomError::Database(DbError::Database("invalid roll page size".to_string())))?;
+    let mut rows = match before_id {
+        Some(before_id) => {
+            conn.query(
+                "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
+                FROM room_rolls rr
+                JOIN rolls r ON r.id = rr.roll_id
+                JOIN users u ON u.id = r.user_id
+                WHERE rr.room_id = ?1 AND r.id < ?2
+                ORDER BY r.id DESC
+                LIMIT ?3",
+                (room_id.into_inner(), before_id.into_inner(), query_limit),
+            )
+            .await?
+        }
+        None => {
+            conn.query(
+                "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
+                FROM room_rolls rr
+                JOIN rolls r ON r.id = rr.roll_id
+                JOIN users u ON u.id = r.user_id
+                WHERE rr.room_id = ?1
+                ORDER BY r.id DESC
+                LIMIT ?2",
+                (room_id.into_inner(), query_limit),
+            )
+            .await?
+        }
+    };
+
+    let mut rolls = Vec::new();
+    while let Some(row) = rows.next().await? {
+        rolls.push(parse_room_roll_summary_row(&row)?);
+    }
+
+    let has_more = rolls.len() > limit;
+    if has_more {
+        rolls.truncate(limit);
+    }
+
+    let next_before_id = if has_more {
+        rolls.last().map(|roll| roll.id)
+    } else {
+        None
+    };
+
+    Ok(RoomRollPage {
+        rolls,
+        next_before_id,
+        has_more,
+    })
+}
+
+fn parse_room_roll_summary_row(row: &libsql::Row) -> Result<RoomRollSummary, RoomError> {
+    let roll_expression = serde_json::from_str::<crate::dsl::parser::Ast>(&row.get::<String>(3)?)
+        .map_err(|error| RoomError::InvalidRollExpression(error.to_string()))?;
+    let roll_result =
+        serde_json::from_str::<crate::dsl::interpreter::EvalResult>(&row.get::<String>(4)?)
+            .map_err(|error| RoomError::InvalidRollResult(error.to_string()))?;
+
+    Ok(RoomRollSummary {
+        id: RoomRollId(row.get::<i64>(0)?),
+        user_id: UserId::new(row.get::<i64>(1)?),
+        username: Username::new(row.get::<String>(2)?),
+        roll_expression,
+        roll_result,
+        final_result: row.get::<i64>(5)?,
+        created_at: row.get::<i64>(6)?,
+        updated_at: row.get::<i64>(7)?,
+    })
 }
 
 async fn insert_room(
@@ -635,6 +861,13 @@ fn validate_room_name(name: String) -> Result<String, RoomError> {
     }
 
     Ok(trimmed.to_string())
+}
+
+fn clamp_room_roll_page_limit(limit: usize) -> usize {
+    match limit {
+        0 => DEFAULT_ROOM_ROLL_PAGE_LIMIT,
+        value => value.min(MAX_ROOM_ROLL_PAGE_LIMIT),
+    }
 }
 
 fn map_room_insert_error(error: libsql::Error) -> RoomError {

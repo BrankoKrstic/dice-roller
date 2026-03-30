@@ -2,12 +2,13 @@ use axum::{Router, extract::FromRef};
 use leptos::config::LeptosOptions;
 
 use crate::server::{
-    api::{auth::create_auth_router, router::create_protected_router},
+    api::{auth::create_auth_router, rooms::RoomLiveHub, router::create_protected_router},
     services::{auth::AuthService, presets::PresetService, rooms::RoomService},
 };
 
 pub mod auth;
 pub mod presets;
+pub mod rooms;
 mod roll;
 mod router;
 
@@ -17,6 +18,7 @@ pub struct AppState {
     pub auth: AuthService,
     pub presets: PresetService,
     pub rooms: RoomService,
+    pub room_live: RoomLiveHub,
 }
 
 pub fn create_router(auth: AuthService) -> Router<AppState> {

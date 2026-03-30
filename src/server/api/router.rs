@@ -9,7 +9,7 @@ use axum_extra::extract::CookieJar;
 
 use crate::{
     server::{
-        api::{AppState, presets::create_presets_router},
+        api::{AppState, presets::create_presets_router, rooms::create_rooms_router},
         services::auth::{AuthError, AuthErrorResponse, AuthService},
     },
     shared::data::user::AuthUser,
@@ -18,6 +18,7 @@ use crate::{
 pub fn create_protected_router(auth: AuthService) -> Router<AppState> {
     Router::new()
         .nest("/presets", create_presets_router())
+        .nest("/rooms", create_rooms_router())
         .route_layer(middleware::from_fn_with_state(auth, require_auth))
 }
 

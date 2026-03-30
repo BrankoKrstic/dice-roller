@@ -3,7 +3,7 @@
 async fn main() {
     use axum::Router;
     use dice_roller::client::App;
-    use dice_roller::server::api::create_router;
+    use dice_roller::server::api::{create_router, rooms::RoomLiveHub};
     use dice_roller::server::{api::AppState, db::Db};
     use dice_roller::{
         app::shell,
@@ -25,6 +25,7 @@ async fn main() {
     let auth = AuthService::from_env(db.clone()).await.unwrap();
     let presets = PresetService::from_env(db.clone()).await.unwrap();
     let rooms = RoomService::from_env(db).await.unwrap();
+    let room_live = RoomLiveHub::new();
     let router = create_router(auth.clone());
 
     let state = AppState {
@@ -32,6 +33,7 @@ async fn main() {
         auth: auth.clone(),
         presets: presets.clone(),
         rooms: rooms.clone(),
+        room_live,
     };
 
     let app = Router::<AppState>::new()

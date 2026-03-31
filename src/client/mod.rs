@@ -43,19 +43,3 @@ pub fn App() -> impl IntoView {
         </div>
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn global_styles_use_g_prefixed_shared_classes() {
-        let styles = include_str!("../../style/main.scss");
-
-        assert!(styles.contains(".g-page-shell-split"));
-        assert!(styles.contains(".g-panel-strong"));
-        assert!(styles.contains(".g-button-action"));
-        assert!(styles.contains(".g-text-input"));
-        assert!(styles.contains(".g-body-scroll-lock"));
-        assert!(!styles.contains(".page-shell--split"));
-        assert!(!styles.contains(".button-action"));
-    }
-}

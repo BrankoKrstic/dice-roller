@@ -1,74 +1,193 @@
 use leptos::prelude::*;
 
-use crate::shared::data::room::ActiveRoomMember;
+use crate::shared::data::{
+    room::{RoomMembershipStatus, RoomRosterMember},
+    user::UserId,
+};
 
 stylance::import_style!(style, "active_user_feed.module.scss");
 
 #[component]
 pub fn ActiveUserFeed(
-    #[prop(into)] active_members: Signal<Vec<ActiveRoomMember>>,
-    creator_id: i64,
+    #[prop(into)] roster_members: Signal<Vec<RoomRosterMember>>,
     #[prop(into)] connected: Signal<bool>,
+    can_manage_members: bool,
+    #[prop(into)] busy_user_id: Signal<Option<i64>>,
+    #[prop(into)] action_error: Signal<Option<String>>,
+    #[prop(into)] on_allow: Callback<UserId>,
+    #[prop(into)] on_request_kick: Callback<UserId>,
 ) -> impl IntoView {
     view! {
         <section class=format!("g-panel g-panel-strong {}", style::presence_card)>
             <div class=style::presence_header>
                 <p class="g-section-label">"Live in room"</p>
-                <h2 class=style::presence_title>"Active user feed"</h2>
+                <h2 class=style::presence_title>"Room roster"</h2>
                 <p class=style::presence_summary>
                     {move || {
                         if connected.get() {
-                            "Presence is live over the room stream."
+                            "Roster and live status are updating over the room stream."
                         } else {
-                            "Presence is reconnecting. Existing room state stays visible while the stream retries."
+                            "Roster is reconnecting. Existing room state stays visible while the stream retries."
                         }
                     }}
                 </p>
             </div>
 
             {move || {
-                let members = active_members.get();
+                action_error
+                    .get()
+                    .map(|message| view! { <p class=style::presence_feedback>{message}</p> })
+            }}
+
+            {move || {
+                let members = roster_members.get();
                 if members.is_empty() {
                     view! {
                         <p class=style::presence_empty>
-                            "No one is actively connected yet."
+                            "No visible room members yet."
                         </p>
                     }
                         .into_any()
                 } else {
                     view! {
-                        <ul class=style::presence_list>
-                            <For
-                                each=move || active_members.get()
+                        <div class=style::presence_scroll>
+                            <ul class=style::presence_list>
+                                <For
+                                each=move || roster_members.get()
                                 key=|member| member.user_id.into_inner()
                                 children=move |member| {
                                     let user_id = member.user_id.into_inner();
-                                    let badge = if user_id == creator_id { "GM" } else { "Live" };
+                                    let allow_user_id = member.user_id;
+                                    let kick_user_id = member.user_id;
 
                                     view! {
-                                        <li class=style::presence_row>
-                                            <div class=style::presence_identity>
-                                                <strong class=style::presence_name>
-                                                    {member.username.as_str().to_string()}
-                                                </strong>
-                                                <p class=style::presence_note>
-                                                    {if user_id == creator_id {
-                                                        "Managing the table and its approvals.".to_string()
-                                                    } else {
-                                                        "Connected to the shared ledger right now.".to_string()
-                                                    }}
-                                                </p>
-                                            </div>
-                                            <span class=style::presence_badge>{badge}</span>
-                                        </li>
+                                            <li
+                                                class=style::presence_row
+                                                data-live=if member.is_live { "true" } else { "false" }
+                                                data-tone=member.status.as_str()
+                                            >
+                                                <div class=style::presence_identity>
+                                                    <strong class=style::presence_name>
+                                                        {member.username.as_str().to_string()}
+                                                    </strong>
+                                                    <p class=style::presence_note>
+                                                        {member_status_note(&member)}
+                                                    </p>
+                                                </div>
+                                                <div class=style::presence_meta>
+                                                    <div class=style::presence_badges>
+                                                        <Show when=move || member.is_creator>
+                                                            <span class=style::presence_badge>"GM"</span>
+                                                        </Show>
+                                                        <span class=style::presence_badge>
+                                                            {if member.is_live { "Live" } else { "Offline" }}
+                                                        </span>
+                                                        <Show when=move || !member.is_creator>
+                                                            <span class=style::presence_badge>
+                                                                {membership_badge_label(member.status)}
+                                                            </span>
+                                                        </Show>
+                                                    </div>
+                                                    <Show when=move || can_manage_members && !member.is_creator>
+                                                        <div class=style::presence_actions>
+                                                            <Show
+                                                                when=move || {
+                                                                    matches!(
+                                                                        member.status,
+                                                                        RoomMembershipStatus::Pending
+                                                                            | RoomMembershipStatus::Kicked
+                                                                    )
+                                                                }
+                                                            >
+                                                                <button
+                                                                    class="g-button-utility"
+                                                                    type="button"
+                                                                    prop:disabled=move || {
+                                                                        busy_user_id.get() == Some(user_id)
+                                                                    }
+                                                                    on:click={
+                                                                        let on_allow = on_allow.clone();
+                                                                        move |_| on_allow.run(allow_user_id)
+                                                                    }
+                                                                >
+                                                                    {move || {
+                                                                        if member.status == RoomMembershipStatus::Kicked {
+                                                                            "Unkick"
+                                                                        } else {
+                                                                            "Admit"
+                                                                        }
+                                                                    }}
+                                                                </button>
+                                                            </Show>
+                                                            <Show
+                                                                when=move || {
+                                                                    matches!(
+                                                                        member.status,
+                                                                        RoomMembershipStatus::Pending
+                                                                            | RoomMembershipStatus::Joined
+                                                                    )
+                                                                }
+                                                            >
+                                                                <button
+                                                                    class="g-button-ghost"
+                                                                    type="button"
+                                                                    prop:disabled=move || {
+                                                                        busy_user_id.get() == Some(user_id)
+                                                                    }
+                                                                    on:click={
+                                                                        let on_request_kick = on_request_kick.clone();
+                                                                        move |_| on_request_kick.run(kick_user_id)
+                                                                    }
+                                                                >
+                                                                    "Kick"
+                                                                </button>
+                                                            </Show>
+                                                        </div>
+                                                    </Show>
+                                                </div>
+                                            </li>
+                                        }
                                     }
-                                }
-                            />
-                        </ul>
+                                />
+                            </ul>
+                        </div>
                     }
                         .into_any()
                 }
             }}
         </section>
+    }
+}
+
+fn membership_badge_label(status: RoomMembershipStatus) -> &'static str {
+    match status {
+        RoomMembershipStatus::Pending => "Pending",
+        RoomMembershipStatus::Joined => "Joined",
+        RoomMembershipStatus::Kicked => "Kicked",
+    }
+}
+
+fn member_status_note(member: &RoomRosterMember) -> String {
+    if member.is_creator {
+        if member.is_live {
+            "Managing the table and connected right now.".to_string()
+        } else {
+            "Managing the table and currently away from the live stream.".to_string()
+        }
+    } else {
+        match (member.status, member.is_live) {
+            (RoomMembershipStatus::Pending, _) => {
+                "Waiting for approval to join the shared ledger.".to_string()
+            }
+            (RoomMembershipStatus::Joined, true) => {
+                "Joined and connected to the shared ledger right now.".to_string()
+            }
+            (RoomMembershipStatus::Joined, false) => {
+                "Joined member who is currently offline.".to_string()
+            }
+            (RoomMembershipStatus::Kicked, _) => {
+                "Removed from the room and ready to be reinstated.".to_string()
+            }
+        }
     }
 }

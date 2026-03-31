@@ -21,6 +21,10 @@ fn is_scroll_near_bottom(node_ref: &NodeRef<html::Div>) -> bool {
     true
 }
 
+fn should_follow_new_roll(previous_roll_count: usize, was_near_bottom: bool) -> bool {
+    previous_roll_count == 0 || was_near_bottom
+}
+
 #[component]
 pub fn RollFeed(
     #[prop(into)] feed: Signal<DiceRollFeed>,
@@ -31,6 +35,7 @@ pub fn RollFeed(
     let roll_feed_ref = NodeRef::<html::Div>::new();
     let last_roll_count = RwSignal::new(0usize);
     let pending_restore_height = RwSignal::new(None::<i32>);
+    let was_near_bottom = RwSignal::new(true);
 
     let on_roll_feed_scroll = move |_| {
         if let Some(container) = roll_feed_ref.get() {
@@ -45,6 +50,8 @@ pub fn RollFeed(
             if is_scroll_near_bottom(&roll_feed_ref) {
                 unread_rolls.set(0);
             }
+
+            was_near_bottom.set(is_scroll_near_bottom(&roll_feed_ref));
         }
     };
 
@@ -55,6 +62,7 @@ pub fn RollFeed(
         if let Some(container) = roll_feed_ref.get() {
             let previous_roll_count = last_roll_count.get();
             let previous_height = pending_restore_height.get();
+            let near_bottom_before_update = was_near_bottom.get();
 
             if roll_count != previous_roll_count {
                 if let Some(previous_height) = previous_height {
@@ -65,7 +73,7 @@ pub fn RollFeed(
                             .set_scroll_top(container.scroll_top().saturating_add(height_delta));
                         pending_restore_height.set(None);
                     }
-                } else if previous_roll_count == 0 || is_scroll_near_bottom(&roll_feed_ref) {
+                } else if should_follow_new_roll(previous_roll_count, near_bottom_before_update) {
                     scroll_to_bottom(&roll_feed_ref);
                     unread_rolls.set(0);
                 } else if roll_count > previous_roll_count {
@@ -73,6 +81,7 @@ pub fn RollFeed(
                         .update(|count| *count += roll_count.saturating_sub(previous_roll_count));
                 }
 
+                was_near_bottom.set(is_scroll_near_bottom(&roll_feed_ref));
                 last_roll_count.set(roll_count);
             }
         } else if roll_count != last_roll_count.get() {
@@ -96,6 +105,7 @@ pub fn RollFeed(
                             on:click=move |_| {
                                 scroll_to_bottom(&roll_feed_ref);
                                 unread_rolls.set(0);
+                                was_near_bottom.set(true);
                             }
                         >
                             {move || {

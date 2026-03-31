@@ -310,8 +310,7 @@ fn unix_timestamp_label(timestamp: i64) -> String {
 pub struct RoomEventStream {
     source: web_sys::EventSource,
     _snapshot: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
-    _presence: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
-    _managed_members: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
+    _roster: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
     _roll_created: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
     _access_revoked: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::MessageEvent)>,
     _error: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
@@ -340,12 +339,7 @@ impl RoomEventStream {
         let on_connection_change = std::rc::Rc::new(on_connection_change);
 
         let snapshot = room_stream_listener("snapshot", on_event.clone(), on_error.clone());
-        let presence = room_stream_listener("presence_changed", on_event.clone(), on_error.clone());
-        let managed_members = room_stream_listener(
-            "managed_members_changed",
-            on_event.clone(),
-            on_error.clone(),
-        );
+        let roster = room_stream_listener("roster_changed", on_event.clone(), on_error.clone());
         let roll_created = room_stream_listener("roll_created", on_event.clone(), on_error.clone());
         let access_revoked =
             room_stream_listener("access_revoked", on_event.clone(), on_error.clone());
@@ -354,12 +348,9 @@ impl RoomEventStream {
             .add_event_listener_with_callback("snapshot", snapshot.as_ref().unchecked_ref())
             .map_err(|error| format!("{error:?}"))?;
         source
-            .add_event_listener_with_callback("presence_changed", presence.as_ref().unchecked_ref())
-            .map_err(|error| format!("{error:?}"))?;
-        source
             .add_event_listener_with_callback(
-                "managed_members_changed",
-                managed_members.as_ref().unchecked_ref(),
+                "roster_changed",
+                roster.as_ref().unchecked_ref(),
             )
             .map_err(|error| format!("{error:?}"))?;
         source
@@ -389,8 +380,7 @@ impl RoomEventStream {
         Ok(Self {
             source,
             _snapshot: snapshot,
-            _presence: presence,
-            _managed_members: managed_members,
+            _roster: roster,
             _roll_created: roll_created,
             _access_revoked: access_revoked,
             _error: error,

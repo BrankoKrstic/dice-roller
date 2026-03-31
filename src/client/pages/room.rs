@@ -15,7 +15,7 @@ use crate::{
     client::{
         components::{
             active_user_feed::ActiveUserFeed, dialog::Dialog, roll_editor::RollEditor,
-            roll_feed::RollFeed, room_member_manager::RoomMemberManager,
+            roll_feed::RollFeed,
         },
         utils::{
             roll_feed::DiceRollFeed,
@@ -27,7 +27,7 @@ use crate::{
     },
     shared::data::{
         room::{
-            ActiveRoomMember, Room, RoomId, RoomMemberSummary, RoomRollId, RoomViewerState,
+            Room, RoomId, RoomMemberSummary, RoomRollId, RoomRosterMember, RoomViewerState,
             RoomViewerStatus,
         },
         user::UserId,
@@ -54,8 +54,7 @@ enum RoomSubscriptionTarget {
 fn room_page_content(
     access_state: Signal<RoomAccessState>,
     room: Signal<Option<Room>>,
-    active_members: Signal<Vec<ActiveRoomMember>>,
-    managed_members: Signal<Vec<RoomMemberSummary>>,
+    roster_members: Signal<Vec<RoomRosterMember>>,
     roll_feed: Signal<DiceRollFeed>,
     loading_more: Signal<bool>,
     stream_connected: Signal<bool>,
@@ -68,7 +67,7 @@ fn room_page_content(
     load_older_rolls: Callback<()>,
     on_roll: Callback<String>,
     on_allow_member: Callback<UserId>,
-    on_request_kick: Callback<RoomMemberSummary>,
+    on_request_kick: Callback<UserId>,
     on_cancel_kick: Callback<()>,
     on_confirm_kick: Callback<()>,
 ) -> impl IntoView {
@@ -235,11 +234,6 @@ fn room_page_content(
                                                                         view! { <p class=style::page_feedback>{message}</p> }
                                                                     })
                                                             }} <RollEditor on_roll=on_roll />
-                                                            <RollFeed
-                                                                feed=roll_feed
-                                                                loading_more=loading_more
-                                                                load_older_rolls=load_older_rolls
-                                                            />
                                                         </>
                                                     }
                                                         .into_any()
@@ -249,20 +243,20 @@ fn room_page_content(
 
                                         <aside class=style::room_rail>
                                             <ActiveUserFeed
-                                                active_members=active_members
-                                                creator_id=room.creator_id.into_inner()
+                                                roster_members=roster_members
                                                 connected=stream_connected
+                                                can_manage_members=viewer.can_manage_members
+                                                busy_user_id=action_busy_user_id
+                                                action_error=action_error
+                                                on_allow=on_allow_member
+                                                on_request_kick=on_request_kick
                                             />
 
-                                            <Show when=move || viewer.can_manage_members>
-                                                <RoomMemberManager
-                                                    members=managed_members
-                                                    busy_user_id=action_busy_user_id
-                                                    action_error=action_error
-                                                    on_allow=on_allow_member
-                                                    on_request_kick=on_request_kick
-                                                />
-                                            </Show>
+                                            <RollFeed
+                                                feed=roll_feed
+                                                loading_more=loading_more
+                                                load_older_rolls=load_older_rolls
+                                            />
                                         </aside>
                                     </div>
                                 }
@@ -321,8 +315,7 @@ pub fn RoomPage() -> impl IntoView {
     let access_state = RwSignal::new(RoomAccessState::Loading);
     let current_room_id = RwSignal::new(None::<RoomId>);
     let room = RwSignal::new(None::<Room>);
-    let active_members = RwSignal::new(Vec::<ActiveRoomMember>::new());
-    let managed_members = RwSignal::new(Vec::<RoomMemberSummary>::new());
+    let roster_members = RwSignal::new(Vec::<RoomRosterMember>::new());
     let roll_feed = RwSignal::new(DiceRollFeed::new());
     let next_before_id = RwSignal::new(None::<RoomRollId>);
     let loading_more = RwSignal::new(false);
@@ -346,8 +339,7 @@ pub fn RoomPage() -> impl IntoView {
 
         current_room_id.set(None);
         room.set(None);
-        active_members.set(Vec::new());
-        managed_members.set(Vec::new());
+        roster_members.set(Vec::new());
         roll_feed.set(DiceRollFeed::new());
         next_before_id.set(None);
         loading_more.set(false);
@@ -423,8 +415,7 @@ pub fn RoomPage() -> impl IntoView {
                         room_id,
                         {
                             let room = room;
-                            let active_members = active_members;
-                            let managed_members = managed_members;
+                            let roster_members = roster_members;
                             let roll_feed = roll_feed;
                             let next_before_id = next_before_id;
                             let live_ready = live_ready;
@@ -434,8 +425,7 @@ pub fn RoomPage() -> impl IntoView {
                             move |event| match event {
                                 RoomStreamEvent::Snapshot { snapshot } => {
                                     room.set(Some(snapshot.room.clone()));
-                                    active_members.set(snapshot.active_members);
-                                    managed_members.set(snapshot.managed_members);
+                                    roster_members.set(snapshot.roster_members);
                                     next_before_id.set(snapshot.recent_rolls.next_before_id);
                                     roll_feed.set(room_roll_feed_from_page(&snapshot.recent_rolls));
                                     live_ready.set(true);
@@ -449,16 +439,8 @@ pub fn RoomPage() -> impl IntoView {
                                         }
                                     });
                                 }
-                                RoomStreamEvent::PresenceChanged {
-                                    active_members: next_members,
-                                } => {
-                                    active_members.set(next_members);
-                                    stream_connected.set(true);
-                                }
-                                RoomStreamEvent::ManagedMembersChanged {
-                                    managed_members: next_members,
-                                } => {
-                                    managed_members.set(next_members);
+                                RoomStreamEvent::RosterChanged { roster_members: next_members } => {
+                                    roster_members.set(next_members);
                                     stream_connected.set(true);
                                 }
                                 RoomStreamEvent::RollCreated { roll } => {
@@ -469,8 +451,7 @@ pub fn RoomPage() -> impl IntoView {
                                     stream_connected.set(false);
                                     stream_error.set(Some(reason.clone()));
                                     live_ready.set(false);
-                                    active_members.set(Vec::new());
-                                    managed_members.set(Vec::new());
+                                    roster_members.set(Vec::new());
                                     roll_feed.set(DiceRollFeed::new());
                                     next_before_id.set(None);
 
@@ -600,8 +581,18 @@ pub fn RoomPage() -> impl IntoView {
         });
     });
 
-    let on_request_kick = Callback::new(move |member: RoomMemberSummary| {
-        kick_dialog_member.set(Some(member));
+    let on_request_kick = Callback::new(move |user_id: UserId| {
+        let selected_member = roster_members
+            .get_untracked()
+            .into_iter()
+            .find(|member| !member.is_creator && member.user_id == user_id)
+            .map(|member| RoomMemberSummary {
+                user_id: member.user_id,
+                username: member.username,
+                status: member.status,
+            });
+
+        kick_dialog_member.set(selected_member);
     });
 
     let on_cancel_kick = Callback::new(move |_| {
@@ -633,8 +624,7 @@ pub fn RoomPage() -> impl IntoView {
     room_page_content(
         access_state.into(),
         room.into(),
-        active_members.into(),
-        managed_members.into(),
+        roster_members.into(),
         roll_feed.into(),
         loading_more.into(),
         stream_connected.into(),

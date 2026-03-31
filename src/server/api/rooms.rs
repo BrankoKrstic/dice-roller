@@ -68,13 +68,8 @@ struct LiveConnection {
 
 #[derive(Clone)]
 enum RoomHubEvent {
-    PresenceChanged {
-        active_members: Vec<ActiveRoomMember>,
-    },
-    ManagedMembersChanged,
-    RollCreated {
-        roll: RoomRollSummary,
-    },
+    RosterChanged,
+    RollCreated { roll: RoomRollSummary },
 }
 
 struct RoomLiveSubscription {
@@ -82,6 +77,30 @@ struct RoomLiveSubscription {
     room_events: broadcast::Receiver<RoomHubEvent>,
     shutdown: watch::Receiver<Option<String>>,
     active_members: Vec<ActiveRoomMember>,
+}
+
+struct RoomLiveConnectionGuard {
+    room_id: RoomId,
+    connection_id: Option<u64>,
+    room_live: RoomLiveHub,
+}
+
+impl RoomLiveConnectionGuard {
+    fn new(room_live: RoomLiveHub, room_id: RoomId, connection_id: u64) -> Self {
+        Self {
+            room_id,
+            connection_id: Some(connection_id),
+            room_live,
+        }
+    }
+}
+
+impl Drop for RoomLiveConnectionGuard {
+    fn drop(&mut self) {
+        if let Some(connection_id) = self.connection_id.take() {
+            self.room_live.unsubscribe(self.room_id, connection_id);
+        }
+    }
 }
 
 impl Default for RoomLiveHubState {
@@ -137,9 +156,7 @@ impl RoomLiveHub {
             )
         };
 
-        let _ = sender.send(RoomHubEvent::PresenceChanged {
-            active_members: active_members.clone(),
-        });
+        let _ = sender.send(RoomHubEvent::RosterChanged);
 
         RoomLiveSubscription {
             connection_id,
@@ -163,7 +180,7 @@ impl RoomLiveHub {
             let notification = if room.connections.is_empty() {
                 None
             } else {
-                Some((room.broadcaster.clone(), collect_active_members(room)))
+                Some(room.broadcaster.clone())
             };
 
             if room.connections.is_empty() {
@@ -173,8 +190,8 @@ impl RoomLiveHub {
             notification
         };
 
-        if let Some((sender, active_members)) = notification {
-            let _ = sender.send(RoomHubEvent::PresenceChanged { active_members });
+        if let Some(sender) = notification {
+            let _ = sender.send(RoomHubEvent::RosterChanged);
         }
     }
 
@@ -187,7 +204,7 @@ impl RoomLiveHub {
             .unwrap_or_default()
     }
 
-    fn notify_managed_members_changed(&self, room_id: RoomId) {
+    fn notify_roster_changed(&self, room_id: RoomId) {
         let sender = {
             let state = self.inner.lock().expect("room live hub lock poisoned");
             state
@@ -197,7 +214,7 @@ impl RoomLiveHub {
         };
 
         if let Some(sender) = sender {
-            let _ = sender.send(RoomHubEvent::ManagedMembersChanged);
+            let _ = sender.send(RoomHubEvent::RosterChanged);
         }
     }
 
@@ -245,7 +262,7 @@ impl RoomLiveHub {
             let notification = if room.connections.is_empty() {
                 None
             } else {
-                Some((room.broadcaster.clone(), collect_active_members(room)))
+                Some(room.broadcaster.clone())
             };
 
             if room.connections.is_empty() {
@@ -259,8 +276,8 @@ impl RoomLiveHub {
             let _ = shutdown.send(Some(reason.clone()));
         }
 
-        if let Some((sender, active_members)) = notification {
-            let _ = sender.send(RoomHubEvent::PresenceChanged { active_members });
+        if let Some(sender) = notification {
+            let _ = sender.send(RoomHubEvent::RosterChanged);
         }
     }
 }
@@ -274,12 +291,12 @@ struct RoomRollsQuery {
 struct RoomStreamState {
     room_id: RoomId,
     viewer_id: UserId,
-    can_manage_members: bool,
     done: bool,
     rooms: RoomService,
     room_live: RoomLiveHub,
     room_events: broadcast::Receiver<RoomHubEvent>,
     shutdown: watch::Receiver<Option<String>>,
+    _subscription_guard: RoomLiveConnectionGuard,
 }
 
 #[axum::debug_handler]
@@ -324,7 +341,7 @@ async fn request_to_join_handler(
     Path(room_id): Path<RoomId>,
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.request_to_join(user.id, room_id).await?;
-    room_live.notify_managed_members_changed(room_id);
+    room_live.notify_roster_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -340,7 +357,7 @@ async fn invite_room_member_handler(
     let membership = rooms
         .add_member_by_email(user.id, room_id, payload.email)
         .await?;
-    room_live.notify_managed_members_changed(room_id);
+    room_live.notify_roster_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -353,7 +370,7 @@ async fn allow_member_handler(
     Path((room_id, target_user_id)): Path<(RoomId, UserId)>,
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.allow_member(user.id, room_id, target_user_id).await?;
-    room_live.notify_managed_members_changed(room_id);
+    room_live.notify_roster_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -371,7 +388,7 @@ async fn kick_member_handler(
         target_user_id,
         "room membership revoked".to_string(),
     );
-    room_live.notify_managed_members_changed(room_id);
+    room_live.notify_roster_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -418,6 +435,8 @@ async fn room_events_handler(
 ) -> RoomApiResult<Response> {
     rooms.authorize_room_read(user.id, room_id).await?;
     let subscription = room_live.subscribe(room_id, &user);
+    let subscription_guard =
+        RoomLiveConnectionGuard::new(room_live.clone(), room_id, subscription.connection_id);
     let snapshot = match rooms
         .get_room_stream_snapshot(
             user.id,
@@ -428,12 +447,8 @@ async fn room_events_handler(
         .await
     {
         Ok(snapshot) => snapshot,
-        Err(error) => {
-            room_live.unsubscribe(room_id, subscription.connection_id);
-            return Err(error.into());
-        }
+        Err(error) => return Err(error.into()),
     };
-    let can_manage_members = snapshot.can_manage_members;
 
     let initial_event = RoomStreamEvent::Snapshot { snapshot };
     let initial = stream::once(async move { Ok::<Event, Infallible>(sse_event(&initial_event)) });
@@ -441,12 +456,12 @@ async fn room_events_handler(
         RoomStreamState {
             room_id,
             viewer_id: user.id,
-            can_manage_members,
             done: false,
             rooms,
             room_live: room_live.clone(),
             room_events: subscription.room_events,
             shutdown: subscription.shutdown,
+            _subscription_guard: subscription_guard,
         },
         |mut state| async move {
             if state.done {
@@ -470,21 +485,17 @@ async fn room_events_handler(
                     }
                     result = state.room_events.recv() => {
                         match result {
-                            Ok(RoomHubEvent::PresenceChanged { active_members }) => {
-                                let event = RoomStreamEvent::PresenceChanged { active_members };
-                                return Some((Ok(sse_event(&event)), state));
-                            }
-                            Ok(RoomHubEvent::ManagedMembersChanged) => {
-                                if !state.can_manage_members {
-                                    continue;
-                                }
-
-                                let managed_members = match state
+                            Ok(RoomHubEvent::RosterChanged) => {
+                                let roster_members = match state
                                     .rooms
-                                    .list_managed_members_for_reader(state.viewer_id, state.room_id)
+                                    .get_room_roster_for_reader(
+                                        state.viewer_id,
+                                        state.room_id,
+                                        state.room_live.active_members(state.room_id),
+                                    )
                                     .await
                                 {
-                                    Ok(pending_members) => pending_members,
+                                    Ok(roster_members) => roster_members,
                                     Err(RoomError::MembershipBlocked | RoomError::MembershipPending | RoomError::MembershipRequired) => {
                                         state.done = true;
                                         let event = RoomStreamEvent::AccessRevoked {
@@ -497,7 +508,7 @@ async fn room_events_handler(
                                     }
                                 };
 
-                                let event = RoomStreamEvent::ManagedMembersChanged { managed_members };
+                                let event = RoomStreamEvent::RosterChanged { roster_members };
                                 return Some((Ok(sse_event(&event)), state));
                             }
                             Ok(RoomHubEvent::RollCreated { roll }) => {
@@ -633,8 +644,7 @@ fn sse_event(event: &RoomStreamEvent) -> Event {
 fn room_stream_event_name(event: &RoomStreamEvent) -> &'static str {
     match event {
         RoomStreamEvent::Snapshot { .. } => "snapshot",
-        RoomStreamEvent::PresenceChanged { .. } => "presence_changed",
-        RoomStreamEvent::ManagedMembersChanged { .. } => "managed_members_changed",
+        RoomStreamEvent::RosterChanged { .. } => "roster_changed",
         RoomStreamEvent::RollCreated { .. } => "roll_created",
         RoomStreamEvent::AccessRevoked { .. } => "access_revoked",
     }

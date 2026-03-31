@@ -1,7 +1,10 @@
 .presence-card,
 .presence-header,
 .presence-list,
-.presence-identity {
+.presence-identity,
+.presence-meta,
+.presence-badges,
+.presence-actions {
   display: grid;
 }
 
@@ -25,10 +28,25 @@
 
 .presence-summary,
 .presence-note,
-.presence-empty {
+.presence-empty,
+.presence-feedback {
   margin: 0;
   color: var(--ink-muted);
   line-height: 1.55;
+}
+
+.presence-feedback {
+  padding: 0.8rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: color-mix(in srgb, var(--danger) 70%, var(--ink));
+}
+
+.presence-scroll {
+  max-height: min(45vh, 28rem);
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .presence-list {
@@ -51,13 +69,40 @@
     color-mix(in srgb, var(--panel) 88%, transparent);
 }
 
+.presence-row[data-live="true"] {
+  border-color: color-mix(in srgb, var(--success) 22%, var(--line));
+}
+
+.presence-row[data-tone="pending"] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 35%),
+    color-mix(in srgb, var(--panel-muted) 92%, transparent);
+}
+
+.presence-row[data-tone="kicked"] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 35%),
+    color-mix(in srgb, var(--paper-strong) 92%, transparent);
+}
+
 .presence-name {
   font-size: 0.98rem;
+}
+
+.presence-meta {
+  gap: 0.7rem;
+  justify-items: end;
+}
+
+.presence-badges {
+  gap: 0.45rem;
+  justify-items: end;
 }
 
 .presence-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 2rem;
   padding: 0.25rem 0.72rem;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
@@ -69,8 +114,19 @@
   letter-spacing: 0.08em;
 }
 
+.presence-actions {
+  gap: 0.55rem;
+  justify-items: end;
+}
+
 @media (max-width: 620px) {
   .presence-row {
     grid-template-columns: 1fr;
+  }
+
+  .presence-meta,
+  .presence-badges,
+  .presence-actions {
+    justify-items: stretch;
   }
 }

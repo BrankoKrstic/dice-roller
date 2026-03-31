@@ -8,8 +8,8 @@ use crate::{
         room::{
             ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomId,
             RoomMemberSummary, RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId,
-            RoomRollPage, RoomRollRequest, RoomRollSummary, RoomStreamSnapshot, RoomViewerState,
-            RoomViewerStatus,
+            RoomRollPage, RoomRollRequest, RoomRollSummary, RoomRosterMember,
+            RoomStreamSnapshot, RoomViewerState, RoomViewerStatus,
         },
         user::{Email, UserId, Username},
     },
@@ -516,11 +516,7 @@ impl RoomService {
     ) -> Result<RoomStreamSnapshot, RoomError> {
         let conn = self.db.connection()?;
         let access = authorize_room_read(&conn, viewer_id, room_id).await?;
-        let managed_members = if access.can_manage_members {
-            fetch_manageable_member_summaries(&conn, room_id, access.room.creator_id).await?
-        } else {
-            Vec::new()
-        };
+        let roster_members = fetch_visible_room_roster(&conn, &access, &active_members).await?;
         let recent_rolls =
             fetch_room_roll_page(&conn, room_id, None, clamp_room_roll_page_limit(roll_limit))
                 .await?;
@@ -528,10 +524,20 @@ impl RoomService {
         Ok(RoomStreamSnapshot {
             room: access.room,
             can_manage_members: access.can_manage_members,
-            active_members,
-            managed_members,
+            roster_members,
             recent_rolls,
         })
+    }
+
+    pub async fn get_room_roster_for_reader(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+        active_members: Vec<ActiveRoomMember>,
+    ) -> Result<Vec<RoomRosterMember>, RoomError> {
+        let conn = self.db.connection()?;
+        let access = authorize_room_read(&conn, viewer_id, room_id).await?;
+        fetch_visible_room_roster(&conn, &access, &active_members).await
     }
 
     pub async fn list_managed_members_for_reader(
@@ -795,6 +801,41 @@ async fn fetch_joined_room_summaries(
     Ok(rooms)
 }
 
+async fn fetch_visible_room_roster(
+    conn: &libsql::Connection,
+    access: &RoomReadAccess,
+    active_members: &[ActiveRoomMember],
+) -> Result<Vec<RoomRosterMember>, RoomError> {
+    let creator_username = fetch_username(conn, access.room.creator_id).await?;
+    let mut roster_members = vec![RoomRosterMember {
+        user_id: access.room.creator_id,
+        username: creator_username,
+        status: RoomMembershipStatus::Joined,
+        is_creator: true,
+        is_live: active_members
+            .iter()
+            .any(|member| member.user_id == access.room.creator_id),
+    }];
+
+    let members = if access.can_manage_members {
+        fetch_manageable_member_summaries(conn, access.room.id, access.room.creator_id).await?
+    } else {
+        fetch_member_summaries_by_status(conn, access.room.id, RoomMembershipStatus::Joined).await?
+    };
+
+    roster_members.extend(members.into_iter().map(|member| RoomRosterMember {
+        is_live: active_members
+            .iter()
+            .any(|active_member| active_member.user_id == member.user_id),
+        is_creator: false,
+        status: member.status,
+        user_id: member.user_id,
+        username: member.username,
+    }));
+
+    Ok(roster_members)
+}
+
 async fn fetch_room_roll_page(
     conn: &libsql::Connection,
     room_id: RoomId,
@@ -854,6 +895,21 @@ async fn fetch_room_roll_page(
         next_before_id,
         has_more,
     })
+}
+
+async fn fetch_username(conn: &libsql::Connection, user_id: UserId) -> Result<Username, RoomError> {
+    let mut rows = conn
+        .query(
+            "SELECT username FROM users WHERE id = ?1",
+            [user_id.into_inner()],
+        )
+        .await?;
+
+    let Some(row) = rows.next().await? else {
+        return Err(RoomError::UserNotFound);
+    };
+
+    Ok(Username::new(row.get::<String>(0)?))
 }
 
 async fn fetch_latest_room_roll_summary(

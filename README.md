@@ -12,15 +12,15 @@ Implemented so far:
 - `/reference` Expression Editor Guide sourced from the parser-supported syntax
 - Email/password auth endpoints plus login/register pages and cookie-backed session checks
 - Server-side room persistence service with migrations for rooms, memberships, rolls, and room-roll links
-- Protected `/rooms` board with seeded room summaries and room ID join routing
-- Protected `/room/:roomId` detail view with seeded activity, live/pending roster panels, and local append-only room rolls
+- Protected `/rooms` board backed by persisted room summaries, room ID join routing, and live member counts
+- Protected `/room/:roomId` detail view with live/pending roster panels, persisted room activity, membership moderation, and SSE-driven updates
 - Full lexer/parser/interpreter pipeline for the dice DSL with unit tests
 - SSR server + hydration setup via `cargo-leptos`
 
 Still stubbed or local-only:
-- Room creation, membership validation, approval actions, and roll persistence routes/UI wiring
-- Real-time multiplayer sync across clients
-- Room activity and roster data beyond the local seeded room stubs
+- Dedicated standalone roll API outside the room/preset surfaces
+- Advanced multiplayer features beyond the current SSE room presence and roll stream
+- Expanded end-to-end browser coverage for the authenticated room flows
 
 ## Tech stack
 

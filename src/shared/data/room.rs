@@ -80,8 +80,7 @@ pub struct RoomMembership {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoomRollRequest {
-    pub roll_expression: Ast,
-    pub roll_result: EvalResult,
+    pub expression: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

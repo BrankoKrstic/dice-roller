@@ -1,4 +1,4 @@
-use leptos::{logging, prelude::*};
+use leptos::prelude::*;
 
 use crate::{
     client::utils::url::base_url,
@@ -9,7 +9,6 @@ pub async fn logout() {
     let ctx = use_auth_context();
     ctx.loading.set(true);
     let client = reqwest::Client::new();
-    logging::log!("HEY I AM HERE");
     let res = client
         .post(format!("{}/api/auth/logout", base_url()))
         .body("")

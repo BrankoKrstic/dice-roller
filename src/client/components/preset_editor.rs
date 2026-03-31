@@ -1,8 +1,11 @@
 use leptos::{prelude::*, task::spawn_local};
-use serde::Deserialize;
 
 use crate::{
-    client::{components::dialog::Dialog, context::auth::use_auth_context, utils::url::base_url},
+    client::{
+        components::dialog::Dialog,
+        context::auth::use_auth_context,
+        utils::{api::parse_error_response, url::base_url},
+    },
     shared::data::{
         preset::{Preset, PresetRequest},
         user::AuthContext,
@@ -12,11 +15,6 @@ use crate::{
 stylance::import_style!(style, "preset_editor.module.scss");
 
 const MAX_PRESETS: usize = 10;
-
-#[derive(Debug, Deserialize)]
-struct ApiErrorResponse {
-    error: String,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PendingDialog {
@@ -30,24 +28,6 @@ fn current_user_id(auth: &AuthContext) -> Option<i64> {
 
 fn save_disabled(presets_len: usize, saving: bool) -> bool {
     saving || presets_len >= MAX_PRESETS
-}
-
-async fn parse_error_response(response: reqwest::Response, fallback: &str) -> String {
-    let status = response.status();
-    let text = response
-        .text()
-        .await
-        .unwrap_or_else(|_| fallback.to_string());
-
-    serde_json::from_str::<ApiErrorResponse>(&text)
-        .map(|payload| payload.error)
-        .unwrap_or_else(|_| {
-            if text.trim().is_empty() {
-                format!("{fallback} ({status})")
-            } else {
-                text
-            }
-        })
 }
 
 async fn list_presets_request() -> Result<Vec<Preset>, String> {

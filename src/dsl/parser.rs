@@ -26,7 +26,6 @@ impl From<LexerError> for ParserError {
 }
 
 pub struct Parser<'input> {
-    whole: &'input str,
     lexer: Lexer<'input>,
 }
 
@@ -242,7 +241,6 @@ type ParseResult = Result<Ast, ParserError>;
 impl<'input> Parser<'input> {
     pub fn new(input: &'input str) -> Self {
         Self {
-            whole: input,
             lexer: Lexer::new(input),
         }
     }

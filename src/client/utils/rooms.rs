@@ -1,14 +1,13 @@
 use chrono::{TimeZone, Utc};
-use serde::Deserialize;
 
 #[cfg(feature = "hydrate")]
 use crate::shared::data::room::{RoomId, RoomStreamEvent};
 use crate::{
     client::utils::{
+        api::parse_error_response,
         roll_feed::{DiceRoll, DiceRollFeed},
         url::base_url,
     },
-    dsl::{interpreter::CryptoDiceRng, interpreter::Interpreter, parser::Parser},
     shared::{
         data::room::{
             ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomMembership, RoomRoll,
@@ -17,11 +16,6 @@ use crate::{
         utils::time::format_timestamp,
     },
 };
-
-#[derive(Debug, Deserialize)]
-struct ApiErrorResponse {
-    error: String,
-}
 
 pub fn room_route(room_id: i64) -> String {
     format!("/room/{room_id}")
@@ -258,17 +252,11 @@ pub async fn list_room_rolls_request(
 }
 
 pub async fn add_room_roll_request(room_id: i64, expression: &str) -> Result<RoomRoll, String> {
-    let mut parser = Parser::new(expression);
-    let ast = parser.parse().map_err(|error| error.to_string())?;
-    let mut runtime = Interpreter::new(CryptoDiceRng::new());
-    let result = runtime.eval_ast(&ast).map_err(|error| error.to_string())?;
-
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{}/api/rooms/{room_id}/rolls", base_url()))
         .json(&RoomRollRequest {
-            roll_expression: ast,
-            roll_result: result,
+            expression: expression.to_string(),
         })
         .send()
         .await
@@ -279,24 +267,6 @@ pub async fn add_room_roll_request(room_id: i64, expression: &str) -> Result<Roo
     }
 
     response.json().await.map_err(|error| error.to_string())
-}
-
-async fn parse_error_response(response: reqwest::Response, fallback: &str) -> String {
-    let status = response.status();
-    let text = response
-        .text()
-        .await
-        .unwrap_or_else(|_| fallback.to_string());
-
-    serde_json::from_str::<ApiErrorResponse>(&text)
-        .map(|payload| payload.error)
-        .unwrap_or_else(|_| {
-            if text.trim().is_empty() {
-                format!("{fallback} ({status})")
-            } else {
-                text
-            }
-        })
 }
 
 fn unix_timestamp_label(timestamp: i64) -> String {
@@ -348,10 +318,7 @@ impl RoomEventStream {
             .add_event_listener_with_callback("snapshot", snapshot.as_ref().unchecked_ref())
             .map_err(|error| format!("{error:?}"))?;
         source
-            .add_event_listener_with_callback(
-                "roster_changed",
-                roster.as_ref().unchecked_ref(),
-            )
+            .add_event_listener_with_callback("roster_changed", roster.as_ref().unchecked_ref())
             .map_err(|error| format!("{error:?}"))?;
         source
             .add_event_listener_with_callback("roll_created", roll_created.as_ref().unchecked_ref())

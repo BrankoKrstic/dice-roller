@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use chrono::Utc;
 use leptos::prelude::*;
 
@@ -12,25 +14,42 @@ use crate::{
 
 stylance::import_style!(style, "home.module.scss");
 
+static LOCAL_ROLL_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_local_roll_id() -> String {
+    format!("local-{}", LOCAL_ROLL_ID.fetch_add(1, Ordering::Relaxed))
+}
+
+fn build_local_roll(expr: String, result: crate::dsl::interpreter::EvalResult) -> DiceRoll {
+    DiceRoll {
+        id: next_local_roll_id(),
+        user_id: String::new(),
+        username: String::from("You"),
+        ts: format_timestamp(Utc::now()),
+        expr,
+        result: result.total(),
+        breakdown: result.to_string(),
+    }
+}
+
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
     let feed = RwSignal::new(DiceRollFeed::new());
+    let roll_error = RwSignal::new(None::<String>);
 
     let load_older_rolls = || {};
 
     let process_roll = move |expr: String| {
-        let result = parse_and_roll(&expr).unwrap();
-        let new_roll = DiceRoll {
-            id: String::new(),
-            user_id: String::new(),
-            username: String::from("You"),
-            ts: format_timestamp(Utc::now()),
-            expr,
-            result: result.total(),
-            breakdown: result.to_string(),
+        let result = match parse_and_roll(&expr) {
+            Ok(result) => result,
+            Err(error) => {
+                roll_error.set(Some(error.to_string()));
+                return;
+            }
         };
 
-        feed.write().add_roll(new_roll);
+        roll_error.set(None);
+        feed.write().add_roll(build_local_roll(expr, result));
     };
     view! {
         <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
@@ -44,6 +63,9 @@ pub(crate) fn HomePage() -> impl IntoView {
                 </section>
 
                 <RollEditor on_roll=process_roll />
+                <Show when=move || roll_error.get().is_some()>
+                    <p class="g-result-hint">{move || roll_error.get().unwrap_or_default()}</p>
+                </Show>
             </section>
 
             <aside class=style::home_rail>

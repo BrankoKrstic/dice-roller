@@ -4,7 +4,10 @@ use serde::Serialize;
 use web_sys::SubmitEvent;
 
 use crate::{
-    client::{context::auth::use_auth_context, utils::url::base_url},
+    client::{
+        context::auth::use_auth_context,
+        utils::{api::parse_error_response, url::base_url},
+    },
     shared::data::user::AuthUser,
 };
 
@@ -30,10 +33,7 @@ async fn register_user_request(payload: RegisterRequest) -> Result<AuthUser, Str
         })?;
 
     if !(200..300).contains(&res.status().as_u16()) {
-        return Err(res
-            .text()
-            .await
-            .unwrap_or(String::from("Failed to register user")));
+        return Err(parse_error_response(res, "Failed to register user").await);
     }
 
     let payload: AuthUser = res.json().await.map_err(|error| error.to_string())?;

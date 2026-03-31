@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::{
-    ChanceResult, WorkerSimulationRequest, WorkerSimulationResponse,
+    ChanceResult,
     client::components::roll_editor::{EditorComponent, EditorState},
 };
 
@@ -10,6 +10,7 @@ use wasm_bindgen::{JsCast, JsValue};
 
 stylance::import_style!(style, "stats.module.scss");
 
+#[cfg(feature = "hydrate")]
 use web_sys::{MessageEvent, Worker};
 
 #[derive(Debug, Clone)]
@@ -19,27 +20,74 @@ enum CalculatorVariant {
 }
 
 #[cfg(feature = "hydrate")]
+#[derive(Debug, serde::Serialize)]
+struct WorkerSimulationRequest {
+    to_hit_expression: String,
+    damage_expression: String,
+    target: i64,
+    trials: u32,
+    ac_mode: bool,
+}
+
+#[cfg(feature = "hydrate")]
+#[derive(Debug, serde::Deserialize)]
+#[serde(tag = "type", content = "content")]
+enum WorkerSimulationResponse {
+    Result(ChanceResult),
+    Error(String),
+}
+
+fn success_percent(result: &ChanceResult) -> f32 {
+    if result.trials == 0 {
+        0.0
+    } else {
+        result.success_count as f32 / result.trials as f32
+    }
+}
+
+fn average_damage_per_attempt(result: &ChanceResult) -> f32 {
+    if result.trials == 0 {
+        0.0
+    } else {
+        result.dmg as f32 / result.trials as f32
+    }
+}
+
+fn average_damage_on_success(result: &ChanceResult) -> f32 {
+    if result.success_count == 0 {
+        0.0
+    } else {
+        result.dmg as f32 / result.success_count as f32
+    }
+}
+
+#[cfg(feature = "hydrate")]
 fn spawn_chance_worker(
     set_result: WriteSignal<Option<ChanceResult>>,
     set_error: WriteSignal<Option<String>>,
     set_running: WriteSignal<bool>,
-) -> Worker {
+) -> Result<Worker, String> {
     let options = web_sys::WorkerOptions::new();
     options.set_type(web_sys::WorkerType::Module);
 
     let worker = web_sys::Worker::new_with_options("/workers/stats-worker.js", &options)
-        .expect("Worker should be there");
+        .map_err(|error| format!("Failed to start simulation worker: {error:?}"))?;
 
     let on_message = wasm_bindgen::closure::Closure::<dyn FnMut(MessageEvent)>::new(
         move |message: MessageEvent| {
-            let response = serde_json::from_str::<WorkerSimulationResponse>(
-                &message.data().as_string().unwrap(),
-            );
+            let response = message
+                .data()
+                .as_string()
+                .ok_or_else(|| "Simulation worker returned a non-text payload.".to_string())
+                .and_then(|text| {
+                    serde_json::from_str::<WorkerSimulationResponse>(&text)
+                        .map_err(|error| format!("Failed to parse simulation result: {error}"))
+                });
 
             let response = match response {
                 Ok(result) => result,
-                Err(e) => {
-                    set_error.set(Some(format!("Failed to parse result {}", e)));
+                Err(message) => {
+                    set_error.set(Some(message));
                     set_running.set(false);
                     return;
                 }
@@ -58,7 +106,7 @@ fn spawn_chance_worker(
     worker.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
     on_message.forget();
 
-    worker
+    Ok(worker)
 }
 
 #[component]
@@ -67,13 +115,6 @@ fn StatsResultPanel(
     result: ReadSignal<Option<ChanceResult>>,
     error: ReadSignal<Option<String>>,
 ) -> impl IntoView {
-    let success_percent = move || {
-        if let Some(res) = result.get() {
-            res.success_count as f32 / res.trials as f32
-        } else {
-            0.0
-        }
-    };
     view! {
         <section class=style::stats_result aria-live="polite">
             {move || {
@@ -82,17 +123,13 @@ fn StatsResultPanel(
                         <article class=style::stats_card>
                             <h3 class=style::stats_card_label>"Simulation result"</h3>
                             <p class=style::stats_card_total>
-                                {format!("{:.2}%", success_percent() * 100.0)}
+                                {format!("{:.2}%", success_percent(&result) * 100.0)}
                             </p>
                             <pre class=style::stats_card_breakdown>
                                 {format!(
                                     "Average damage per attempt: {:.3}\nAverage damage on success: {:.3}",
-                                    if result.success_count == 0 {
-                                        0.0
-                                    } else {
-                                        result.dmg as f32 / result.success_count as f32
-                                    },
-                                    result.dmg as f32 / result.trials as f32,
+                                    average_damage_per_attempt(&result),
+                                    average_damage_on_success(&result),
                                 )}
                             </pre>
                         </article>
@@ -150,6 +187,9 @@ pub fn StatsPage() -> impl IntoView {
     let (error, set_error) = signal::<Option<String>>(None);
     let (result, set_result) = signal::<Option<ChanceResult>>(None);
 
+    #[cfg(not(feature = "hydrate"))]
+    let _ = (&set_running, &set_error, &set_result);
+
     #[cfg(feature = "hydrate")]
     let worker = spawn_chance_worker(set_result, set_error, set_running);
 
@@ -158,18 +198,37 @@ pub fn StatsPage() -> impl IntoView {
         set_running.set(true);
         set_result.set(None);
         set_error.set(None);
-        worker
-            .post_message(&JsValue::from_str(
-                &serde_json::to_string(&WorkerSimulationRequest {
-                    to_hit_expression: to_hit_editor.get().get_expr(),
-                    damage_expression: dmg_editor.get().get_expr(),
-                    target: target.get(),
-                    trials: 1_000_000,
-                    ac_mode: matches!(variant.get(), CalculatorVariant::Ac),
-                })
-                .unwrap(),
-            ))
-            .expect("Can post message to worker");
+
+        let worker = match &worker {
+            Ok(worker) => worker,
+            Err(message) => {
+                set_running.set(false);
+                set_error.set(Some(message.clone()));
+                return;
+            }
+        };
+
+        let request = match serde_json::to_string(&WorkerSimulationRequest {
+            to_hit_expression: to_hit_editor.get().get_expr(),
+            damage_expression: dmg_editor.get().get_expr(),
+            target: target.get(),
+            trials: 1_000_000,
+            ac_mode: matches!(variant.get(), CalculatorVariant::Ac),
+        }) {
+            Ok(request) => request,
+            Err(error) => {
+                set_running.set(false);
+                set_error.set(Some(format!("Failed to start simulation: {error}")));
+                return;
+            }
+        };
+
+        if let Err(error) = worker.post_message(&JsValue::from_str(&request)) {
+            set_running.set(false);
+            set_error.set(Some(format!(
+                "Failed to send simulation request: {error:?}"
+            )));
+        }
     };
 
     #[cfg(not(feature = "hydrate"))]

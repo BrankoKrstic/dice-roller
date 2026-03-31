@@ -3,13 +3,15 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
+    dsl::interpreter::{CryptoDiceRng, EvalResult, Interpreter},
+    dsl::parser::{Ast, Parser},
     server::db::{Db, DbError},
     shared::data::{
         room::{
             ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomId,
             RoomMemberSummary, RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId,
-            RoomRollPage, RoomRollRequest, RoomRollSummary, RoomRosterMember,
-            RoomStreamSnapshot, RoomViewerState, RoomViewerStatus,
+            RoomRollPage, RoomRollRequest, RoomRollSummary, RoomRosterMember, RoomStreamSnapshot,
+            RoomViewerState, RoomViewerStatus,
         },
         user::{Email, UserId, Username},
     },
@@ -394,10 +396,8 @@ impl RoomService {
             }
         }
 
-        let RoomRollRequest {
-            roll_expression,
-            roll_result,
-        } = payload;
+        let RoomRollRequest { expression } = payload;
+        let (roll_expression, roll_result) = parse_room_roll_expression(&expression)?;
         let final_result = roll_result.total();
 
         let roll_expression_json = serde_json::to_string(&roll_expression)
@@ -823,14 +823,16 @@ async fn fetch_visible_room_roster(
         fetch_member_summaries_by_status(conn, access.room.id, RoomMembershipStatus::Joined).await?
     };
 
-    roster_members.extend(members.into_iter().map(|member| RoomRosterMember {
-        is_live: active_members
-            .iter()
-            .any(|active_member| active_member.user_id == member.user_id),
-        is_creator: false,
-        status: member.status,
-        user_id: member.user_id,
-        username: member.username,
+    roster_members.extend(members.into_iter().map(|member| {
+        RoomRosterMember {
+            is_live: active_members
+                .iter()
+                .any(|active_member| active_member.user_id == member.user_id),
+            is_creator: false,
+            status: member.status,
+            user_id: member.user_id,
+            username: member.username,
+        }
     }));
 
     Ok(roster_members)
@@ -1052,6 +1054,18 @@ fn validate_room_name(name: String) -> Result<String, RoomError> {
     }
 
     Ok(trimmed.to_string())
+}
+
+fn parse_room_roll_expression(expression: &str) -> Result<(Ast, EvalResult), RoomError> {
+    let ast = Parser::new(expression)
+        .parse()
+        .map_err(|error| RoomError::InvalidRollExpression(error.to_string()))?;
+    let mut runtime = Interpreter::new(CryptoDiceRng::new());
+    let result = runtime
+        .eval_ast(&ast)
+        .map_err(|error| RoomError::InvalidRollExpression(error.to_string()))?;
+
+    Ok((ast, result))
 }
 
 fn clamp_room_roll_page_limit(limit: usize) -> usize {

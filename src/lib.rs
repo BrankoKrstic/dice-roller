@@ -20,24 +20,15 @@ pub struct ChanceResult {
     pub dmg: i128,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", content = "content")]
-enum WorkerSimulationResponse {
-    Result(ChanceResult),
-    Error(String),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct WorkerSimulationRequest {
-    to_hit_expression: String,
-    damage_expression: String,
-    target: i64,
-    trials: u32,
-    ac_mode: bool,
-}
-
 #[cfg(feature = "hydrate")]
 fn worker_response_json(result: Result<ChanceResult, RollError>) -> String {
+    #[derive(Debug, Serialize, Deserialize)]
+    #[serde(tag = "type", content = "content")]
+    enum WorkerSimulationResponse {
+        Result(ChanceResult),
+        Error(String),
+    }
+
     let payload = match result {
         Ok(result) => WorkerSimulationResponse::Result(result),
         Err(error) => WorkerSimulationResponse::Error(error.to_string()),

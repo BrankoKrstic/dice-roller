@@ -439,7 +439,9 @@ pub fn RoomPage() -> impl IntoView {
                                         }
                                     });
                                 }
-                                RoomStreamEvent::RosterChanged { roster_members: next_members } => {
+                                RoomStreamEvent::RosterChanged {
+                                    roster_members: next_members,
+                                } => {
                                     roster_members.set(next_members);
                                     stream_connected.set(true);
                                 }

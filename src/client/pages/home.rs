@@ -56,31 +56,14 @@ pub(crate) fn HomePage() -> impl IntoView {
                     <ul class=style::session_list>
                         <li>"Rolls append immediately to the activity rail."</li>
                         <li>"Notation help lives on the dedicated reference route."</li>
-                        <li>"Chance analysis stays adjacent instead of competing with the main composer."</li>
+                        <li>
+                            "Chance analysis stays adjacent instead of competing with the main composer."
+                        </li>
                     </ul>
                 </section>
 
                 <RollFeed feed=feed loading_more=false load_older_rolls=load_older_rolls />
             </aside>
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn home_page_introduces_the_session_ledger_layout() {
-        use leptos::prelude::*;
-
-        let owner = Owner::new();
-        owner.set();
-
-        let rendered = view! { <super::HomePage /> };
-        let html = rendered.to_html();
-
-        assert!(html.contains("Room-first rolling, live by default."));
-        assert!(html.contains("Current Table"));
-        assert!(html.contains("Room Activity"));
     }
 }

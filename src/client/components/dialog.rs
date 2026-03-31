@@ -8,6 +8,7 @@ stylance::import_style!(style, "dialog.module.scss");
 pub fn Dialog(
     #[prop(into)] open: Signal<bool>,
     title: String,
+    #[prop(optional, into)] label: Option<String>,
     #[prop(optional)] summary: Option<String>,
     #[prop(into)] on_close: Callback<()>,
     children: ChildrenFn,
@@ -72,7 +73,9 @@ pub fn Dialog(
                             <div class=format!("g-panel g-panel-strong {}", style::dialog_panel)>
                                 <div class=style::dialog_header>
                                     <div class=style::dialog_heading>
-                                        <p class="g-section-label">"Preset controls"</p>
+                                        <p class="g-section-label">
+                                            {label.clone().unwrap_or_else(|| "Dialog".to_string())}
+                                        </p>
                                         <h2 id="dialog-title" class="g-section-title">
                                             {title.clone()}
                                         </h2>

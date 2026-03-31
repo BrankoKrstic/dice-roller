@@ -29,9 +29,9 @@ use crate::{
     },
     shared::data::{
         room::{
-            ActiveRoomMember, CreateRoomRequest, InviteRoomMemberRequest, Room, RoomId,
-            RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest, RoomRollSummary,
-            RoomStreamEvent,
+            ActiveRoomMember, CreateRoomRequest, InviteRoomMemberRequest, JoinedRoomSummary, Room,
+            RoomId, RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest,
+            RoomRollSummary, RoomStreamEvent, RoomViewerState,
         },
         user::{AuthUser, UserId},
     },
@@ -71,7 +71,7 @@ enum RoomHubEvent {
     PresenceChanged {
         active_members: Vec<ActiveRoomMember>,
     },
-    PendingMembersChanged,
+    ManagedMembersChanged,
     RollCreated {
         roll: RoomRollSummary,
     },
@@ -187,7 +187,7 @@ impl RoomLiveHub {
             .unwrap_or_default()
     }
 
-    fn notify_pending_members_changed(&self, room_id: RoomId) {
+    fn notify_managed_members_changed(&self, room_id: RoomId) {
         let sender = {
             let state = self.inner.lock().expect("room live hub lock poisoned");
             state
@@ -197,7 +197,7 @@ impl RoomLiveHub {
         };
 
         if let Some(sender) = sender {
-            let _ = sender.send(RoomHubEvent::PendingMembersChanged);
+            let _ = sender.send(RoomHubEvent::ManagedMembersChanged);
         }
     }
 
@@ -293,6 +293,30 @@ async fn create_room_handler(
 }
 
 #[axum::debug_handler(state = AppState)]
+async fn list_rooms_handler(
+    State(rooms): State<RoomService>,
+    State(room_live): State<RoomLiveHub>,
+    Extension(user): Extension<AuthUser>,
+) -> RoomApiResult<Json<Vec<JoinedRoomSummary>>> {
+    let mut rooms = rooms.list_joined_rooms(user.id).await?;
+    for summary in &mut rooms {
+        summary.active_member_count = room_live.active_members(summary.room.id).len();
+    }
+
+    Ok(Json(rooms))
+}
+
+#[axum::debug_handler]
+async fn room_access_handler(
+    State(rooms): State<RoomService>,
+    Extension(user): Extension<AuthUser>,
+    Path(room_id): Path<RoomId>,
+) -> RoomApiResult<Json<RoomViewerState>> {
+    let access = rooms.get_room_viewer_state(user.id, room_id).await?;
+    Ok(Json(access))
+}
+
+#[axum::debug_handler(state = AppState)]
 async fn request_to_join_handler(
     State(rooms): State<RoomService>,
     State(room_live): State<RoomLiveHub>,
@@ -300,7 +324,7 @@ async fn request_to_join_handler(
     Path(room_id): Path<RoomId>,
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.request_to_join(user.id, room_id).await?;
-    room_live.notify_pending_members_changed(room_id);
+    room_live.notify_managed_members_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -316,7 +340,7 @@ async fn invite_room_member_handler(
     let membership = rooms
         .add_member_by_email(user.id, room_id, payload.email)
         .await?;
-    room_live.notify_pending_members_changed(room_id);
+    room_live.notify_managed_members_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -329,7 +353,7 @@ async fn allow_member_handler(
     Path((room_id, target_user_id)): Path<(RoomId, UserId)>,
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.allow_member(user.id, room_id, target_user_id).await?;
-    room_live.notify_pending_members_changed(room_id);
+    room_live.notify_managed_members_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -347,7 +371,7 @@ async fn kick_member_handler(
         target_user_id,
         "room membership revoked".to_string(),
     );
-    room_live.notify_pending_members_changed(room_id);
+    room_live.notify_managed_members_changed(room_id);
 
     Ok(Json(membership))
 }
@@ -450,14 +474,14 @@ async fn room_events_handler(
                                 let event = RoomStreamEvent::PresenceChanged { active_members };
                                 return Some((Ok(sse_event(&event)), state));
                             }
-                            Ok(RoomHubEvent::PendingMembersChanged) => {
+                            Ok(RoomHubEvent::ManagedMembersChanged) => {
                                 if !state.can_manage_members {
                                     continue;
                                 }
 
-                                let pending_members = match state
+                                let managed_members = match state
                                     .rooms
-                                    .list_pending_members_for_reader(state.viewer_id, state.room_id)
+                                    .list_managed_members_for_reader(state.viewer_id, state.room_id)
                                     .await
                                 {
                                     Ok(pending_members) => pending_members,
@@ -473,7 +497,7 @@ async fn room_events_handler(
                                     }
                                 };
 
-                                let event = RoomStreamEvent::PendingMembersChanged { pending_members };
+                                let event = RoomStreamEvent::ManagedMembersChanged { managed_members };
                                 return Some((Ok(sse_event(&event)), state));
                             }
                             Ok(RoomHubEvent::RollCreated { roll }) => {
@@ -529,7 +553,8 @@ async fn room_events_handler(
 
 pub fn create_rooms_router() -> Router<AppState> {
     Router::new()
-        .route("/", post(create_room_handler))
+        .route("/", get(list_rooms_handler).post(create_room_handler))
+        .route("/{room_id}/access", get(room_access_handler))
         .route("/{room_id}/join", post(request_to_join_handler))
         .route("/{room_id}/members", post(invite_room_member_handler))
         .route(
@@ -609,7 +634,7 @@ fn room_stream_event_name(event: &RoomStreamEvent) -> &'static str {
     match event {
         RoomStreamEvent::Snapshot { .. } => "snapshot",
         RoomStreamEvent::PresenceChanged { .. } => "presence_changed",
-        RoomStreamEvent::PendingMembersChanged { .. } => "pending_members_changed",
+        RoomStreamEvent::ManagedMembersChanged { .. } => "managed_members_changed",
         RoomStreamEvent::RollCreated { .. } => "roll_created",
         RoomStreamEvent::AccessRevoked { .. } => "access_revoked",
     }

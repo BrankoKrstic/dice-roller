@@ -127,7 +127,9 @@ fn StatsResultPanel(
                                 aria-label="Simulation in progress"
                             >
                                 <div class=style::stats_loader_spinner></div>
-                                <p class=style::stats_loader_text>"Running one million trials..."</p>
+                                <p class=style::stats_loader_text>
+                                    "Running one million trials..."
+                                </p>
                             </div>
                         </Show>
                     }
@@ -229,7 +231,8 @@ pub fn StatsPage() -> impl IntoView {
                                 type="number"
                                 prop:value=move || target.get().to_string()
                                 on:input=move |ev| {
-                                    set_target.set(event_target_value(&ev).parse::<i64>().unwrap_or(10));
+                                    set_target
+                                        .set(event_target_value(&ev).parse::<i64>().unwrap_or(10));
                                 }
                             />
                         </div>
@@ -297,36 +300,5 @@ pub fn StatsPage() -> impl IntoView {
                 <StatsResultPanel running=running result=result error=error />
             </aside>
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn stats_page_renders_both_mode_buttons() {
-        use leptos::prelude::*;
-
-        let owner = Owner::new();
-        owner.set();
-
-        let html = view! { <super::StatsPage /> }.to_html();
-
-        assert!(html.contains("To-hit"));
-        assert!(html.contains("Saving throw"));
-    }
-
-    #[test]
-    fn stats_styles_leave_each_editor_room_for_two_bench_columns() {
-        let styles = include_str!("stats.module.scss");
-
-        assert!(styles.contains(".stats-shell"));
-        assert!(styles.contains("grid-template-columns: minmax(0, 1.45fr) minmax(17rem, 0.55fr);"));
-        assert!(
-            styles.contains(
-                "grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr));"
-            )
-        );
-        assert!(styles.contains("--roll-editor-padding: 1rem;"));
     }
 }

@@ -8,8 +8,8 @@ use crate::server::{
 
 pub mod auth;
 pub mod presets;
-pub mod rooms;
 mod roll;
+pub mod rooms;
 mod router;
 
 #[derive(FromRef, Clone)]

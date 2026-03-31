@@ -6,9 +6,10 @@ use crate::{
     server::db::{Db, DbError},
     shared::data::{
         room::{
-            ActiveRoomMember, CreateRoomRequest, Room, RoomId, RoomMemberSummary,
-            RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId, RoomRollPage,
-            RoomRollRequest, RoomRollSummary, RoomStreamSnapshot,
+            ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomId,
+            RoomMemberSummary, RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId,
+            RoomRollPage, RoomRollRequest, RoomRollSummary, RoomStreamSnapshot, RoomViewerState,
+            RoomViewerStatus,
         },
         user::{Email, UserId, Username},
     },
@@ -465,6 +466,47 @@ impl RoomService {
         authorize_room_read(&conn, viewer_id, room_id).await
     }
 
+    pub async fn get_room_viewer_state(
+        &self,
+        viewer_id: UserId,
+        room_id: RoomId,
+    ) -> Result<RoomViewerState, RoomError> {
+        let conn = self.db.connection()?;
+        let room = require_room(&conn, room_id).await?;
+
+        if room.creator_id == viewer_id {
+            return Ok(RoomViewerState {
+                room,
+                viewer_status: RoomViewerStatus::Creator,
+                can_manage_members: true,
+            });
+        }
+
+        let Some(membership) = fetch_membership(&conn, room_id, viewer_id).await? else {
+            return Err(RoomError::MembershipRequired);
+        };
+
+        let viewer_status = match membership.status {
+            RoomMembershipStatus::Joined => RoomViewerStatus::Joined,
+            RoomMembershipStatus::Pending => RoomViewerStatus::Pending,
+            RoomMembershipStatus::Kicked => RoomViewerStatus::Kicked,
+        };
+
+        Ok(RoomViewerState {
+            room,
+            viewer_status,
+            can_manage_members: false,
+        })
+    }
+
+    pub async fn list_joined_rooms(
+        &self,
+        viewer_id: UserId,
+    ) -> Result<Vec<JoinedRoomSummary>, RoomError> {
+        let conn = self.db.connection()?;
+        fetch_joined_room_summaries(&conn, viewer_id).await
+    }
+
     pub async fn get_room_stream_snapshot(
         &self,
         viewer_id: UserId,
@@ -474,8 +516,8 @@ impl RoomService {
     ) -> Result<RoomStreamSnapshot, RoomError> {
         let conn = self.db.connection()?;
         let access = authorize_room_read(&conn, viewer_id, room_id).await?;
-        let pending_members = if access.can_manage_members {
-            fetch_member_summaries_by_status(&conn, room_id, RoomMembershipStatus::Pending).await?
+        let managed_members = if access.can_manage_members {
+            fetch_manageable_member_summaries(&conn, room_id, access.room.creator_id).await?
         } else {
             Vec::new()
         };
@@ -487,12 +529,12 @@ impl RoomService {
             room: access.room,
             can_manage_members: access.can_manage_members,
             active_members,
-            pending_members,
+            managed_members,
             recent_rolls,
         })
     }
 
-    pub async fn list_pending_members_for_reader(
+    pub async fn list_managed_members_for_reader(
         &self,
         viewer_id: UserId,
         room_id: RoomId,
@@ -503,7 +545,7 @@ impl RoomService {
             return Ok(Vec::new());
         }
 
-        fetch_member_summaries_by_status(&conn, room_id, RoomMembershipStatus::Pending).await
+        fetch_manageable_member_summaries(&conn, room_id, access.room.creator_id).await
     }
 
     pub async fn list_room_rolls(
@@ -516,13 +558,7 @@ impl RoomService {
         let conn = self.db.connection()?;
         authorize_room_read(&conn, viewer_id, room_id).await?;
 
-        fetch_room_roll_page(
-            &conn,
-            room_id,
-            before_id,
-            clamp_room_roll_page_limit(limit),
-        )
-        .await
+        fetch_room_roll_page(&conn, room_id, before_id, clamp_room_roll_page_limit(limit)).await
     }
 }
 
@@ -685,14 +721,89 @@ async fn fetch_member_summaries_by_status(
     Ok(members)
 }
 
+async fn fetch_manageable_member_summaries(
+    conn: &libsql::Connection,
+    room_id: RoomId,
+    creator_id: UserId,
+) -> Result<Vec<RoomMemberSummary>, RoomError> {
+    let mut rows = conn
+        .query(
+            "SELECT m.user_id, u.username, m.status
+            FROM members m
+            JOIN users u ON u.id = m.user_id
+            WHERE m.room_id = ?1 AND m.user_id != ?2
+            ORDER BY m.created_at ASC, m.user_id ASC",
+            (room_id.into_inner(), creator_id.into_inner()),
+        )
+        .await?;
+
+    let mut members = Vec::new();
+    while let Some(row) = rows.next().await? {
+        let status = row.get::<String>(2)?;
+        let Some(status) = RoomMembershipStatus::from_db(status.as_str()) else {
+            return Err(RoomError::Database(DbError::Database(
+                "Invalid room membership status in database".to_string(),
+            )));
+        };
+
+        members.push(RoomMemberSummary {
+            user_id: UserId::new(row.get::<i64>(0)?),
+            username: Username::new(row.get::<String>(1)?),
+            status,
+        });
+    }
+
+    Ok(members)
+}
+
+async fn fetch_joined_room_summaries(
+    conn: &libsql::Connection,
+    viewer_id: UserId,
+) -> Result<Vec<JoinedRoomSummary>, RoomError> {
+    let mut rows = conn
+        .query(
+            "SELECT DISTINCT r.id, r.creator_id, r.name, r.created_at, r.updated_at
+            FROM rooms r
+            LEFT JOIN members m
+                ON m.room_id = r.id
+                AND m.user_id = ?1
+            WHERE r.creator_id = ?1 OR m.status = 'joined'
+            ORDER BY r.updated_at DESC, r.id DESC",
+            [viewer_id.into_inner()],
+        )
+        .await?;
+
+    let mut rooms = Vec::new();
+    while let Some(row) = rows.next().await? {
+        let room = Room {
+            id: RoomId(row.get::<i64>(0)?),
+            creator_id: UserId::new(row.get::<i64>(1)?),
+            name: row.get::<String>(2)?,
+            created_at: row.get::<i64>(3)?,
+            updated_at: row.get::<i64>(4)?,
+        };
+        let latest_roll = fetch_latest_room_roll_summary(conn, room.id).await?;
+
+        rooms.push(JoinedRoomSummary {
+            can_manage_members: room.creator_id == viewer_id,
+            room,
+            active_member_count: 0,
+            latest_roll,
+        });
+    }
+
+    Ok(rooms)
+}
+
 async fn fetch_room_roll_page(
     conn: &libsql::Connection,
     room_id: RoomId,
     before_id: Option<RoomRollId>,
     limit: usize,
 ) -> Result<RoomRollPage, RoomError> {
-    let query_limit = i64::try_from(limit.saturating_add(1))
-        .map_err(|_| RoomError::Database(DbError::Database("invalid roll page size".to_string())))?;
+    let query_limit = i64::try_from(limit.saturating_add(1)).map_err(|_| {
+        RoomError::Database(DbError::Database("invalid roll page size".to_string()))
+    })?;
     let mut rows = match before_id {
         Some(before_id) => {
             conn.query(
@@ -743,6 +854,30 @@ async fn fetch_room_roll_page(
         next_before_id,
         has_more,
     })
+}
+
+async fn fetch_latest_room_roll_summary(
+    conn: &libsql::Connection,
+    room_id: RoomId,
+) -> Result<Option<RoomRollSummary>, RoomError> {
+    let mut rows = conn
+        .query(
+            "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
+            FROM room_rolls rr
+            JOIN rolls r ON r.id = rr.roll_id
+            JOIN users u ON u.id = r.user_id
+            WHERE rr.room_id = ?1
+            ORDER BY r.id DESC
+            LIMIT 1",
+            [room_id.into_inner()],
+        )
+        .await?;
+
+    let Some(row) = rows.next().await? else {
+        return Ok(None);
+    };
+
+    parse_room_roll_summary_row(&row).map(Some)
 }
 
 fn parse_room_roll_summary_row(row: &libsql::Row) -> Result<RoomRollSummary, RoomError> {

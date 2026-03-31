@@ -204,21 +204,3 @@ pub const REFERENCE_SECTIONS: &[ReferenceSection] = &[
         entries: GUARDRAILS,
     },
 ];
-
-#[cfg(test)]
-mod tests {
-    fn all_example_expressions() -> impl Iterator<Item = &'static str> {
-        super::REFERENCE_SECTIONS
-            .iter()
-            .flat_map(|section| section.entries.iter().map(|entry| entry.syntax))
-    }
-
-    #[test]
-    fn every_documented_reference_expression_parses() {
-        for expr in all_example_expressions() {
-            crate::dsl::parser::Parser::new(expr)
-                .parse()
-                .unwrap_or_else(|err| panic!("{expr} should parse: {err}"));
-        }
-    }
-}

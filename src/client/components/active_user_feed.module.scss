@@ -1,0 +1,76 @@
+.presence-card,
+.presence-header,
+.presence-list,
+.presence-identity {
+  display: grid;
+}
+
+.presence-card {
+  gap: 0.9rem;
+  padding: clamp(1rem, 2vw, 1.2rem);
+}
+
+.presence-header,
+.presence-identity {
+  gap: 0.35rem;
+}
+
+.presence-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2vw, 1.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+}
+
+.presence-summary,
+.presence-note,
+.presence-empty {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.presence-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 0.75rem;
+}
+
+.presence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: start;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 35%),
+    color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.presence-name {
+  font-size: 0.98rem;
+}
+
+.presence-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.25rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft) 84%, transparent);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 620px) {
+  .presence-row {
+    grid-template-columns: 1fr;
+  }
+}

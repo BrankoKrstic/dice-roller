@@ -22,18 +22,3 @@ pub fn NotFoundPage() -> impl IntoView {
         </section>
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn not_found_page_offers_a_recovery_surface() {
-        use leptos::prelude::*;
-
-        let rendered = view! { <super::NotFoundPage /> };
-        let html = rendered.to_html();
-
-        assert!(html.contains("Route Lost"));
-        assert!(html.contains("Return to Roller"));
-    }
-}

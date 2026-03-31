@@ -1,19 +1,77 @@
-use leptos::prelude::*;
+#[cfg(feature = "hydrate")]
+use std::{cell::RefCell, rc::Rc};
+
+use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_params_map;
 
-use super::room_stubs::{
-    RoomRosterEntry, RoomStub, build_local_room_roll, find_room_by_id, normalize_room_id_input,
+#[cfg(feature = "hydrate")]
+use crate::{
+    client::utils::rooms::{
+        IntervalHandle, RoomEventStream, append_live_room_roll, room_roll_feed_from_page,
+    },
+    shared::data::room::RoomStreamEvent,
 };
 use crate::{
-    client::components::{roll_editor::RollEditor, roll_feed::RollFeed},
-    dsl::parse_and_roll,
+    client::{
+        components::{
+            active_user_feed::ActiveUserFeed, dialog::Dialog, roll_editor::RollEditor,
+            roll_feed::RollFeed, room_member_manager::RoomMemberManager,
+        },
+        utils::{
+            roll_feed::DiceRollFeed,
+            rooms::{
+                add_room_roll_request, allow_member_request, get_room_access_request,
+                kick_member_request, list_room_rolls_request, prepend_room_roll_page,
+            },
+        },
+    },
+    shared::data::{
+        room::{
+            ActiveRoomMember, Room, RoomId, RoomMemberSummary, RoomRollId, RoomViewerState,
+            RoomViewerStatus,
+        },
+        user::UserId,
+    },
 };
 
 stylance::import_style!(style, "room.module.scss");
 
-fn room_page_content(room: Option<RoomStub>, attempted_room_id: &str) -> impl IntoView {
-    let attempted_room_id = attempted_room_id.trim().to_string();
+#[derive(Debug, Clone, PartialEq)]
+enum RoomAccessState {
+    Loading,
+    Ready(RoomViewerState),
+    Error(String),
+}
 
+#[cfg(feature = "hydrate")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RoomSubscriptionTarget {
+    Stream(RoomId),
+    Pending(RoomId),
+    None,
+}
+
+fn room_page_content(
+    access_state: Signal<RoomAccessState>,
+    room: Signal<Option<Room>>,
+    active_members: Signal<Vec<ActiveRoomMember>>,
+    managed_members: Signal<Vec<RoomMemberSummary>>,
+    roll_feed: Signal<DiceRollFeed>,
+    loading_more: Signal<bool>,
+    stream_connected: Signal<bool>,
+    live_ready: Signal<bool>,
+    stream_error: Signal<Option<String>>,
+    roll_error: Signal<Option<String>>,
+    action_error: Signal<Option<String>>,
+    action_busy_user_id: Signal<Option<i64>>,
+    kick_dialog_member: Signal<Option<RoomMemberSummary>>,
+    load_older_rolls: Callback<()>,
+    on_roll: Callback<String>,
+    on_allow_member: Callback<UserId>,
+    on_request_kick: Callback<RoomMemberSummary>,
+    on_cancel_kick: Callback<()>,
+    on_confirm_kick: Callback<()>,
+) -> impl IntoView {
     view! {
         <section class="g-page g-page-shell">
             <section class=format!("g-panel g-panel-strong {}", style::room_shell)>
@@ -23,232 +81,574 @@ fn room_page_content(room: Option<RoomStub>, attempted_room_id: &str) -> impl In
                     </a>
                 </div>
 
-                {match room {
-                    Some(room) => {
-                        let room_title = room.room_title.clone();
-                        let room_id = room.room_id.clone();
-                        let room_note = room.room_note.clone();
-                        let live_users = room.live_users.clone();
-                        let pending_users = room.pending_users.clone();
-                        let feed = RwSignal::new(room.activity_feed.clone());
-                        let load_older_rolls = Callback::new(|_| {});
-
-                        let process_roll = move |expr: String| {
-                            if let Ok(result) = parse_and_roll(&expr) {
-                                let breakdown = result.to_string();
-                                let new_roll =
-                                    build_local_room_roll(&expr, result.total(), &breakdown);
-
-                                feed.write().add_roll(new_roll);
-                            }
-                        };
-
+                {move || match access_state.get() {
+                    RoomAccessState::Loading => {
                         view! {
-                            <div class=format!("g-page-shell-split {}", style::room_layout)>
-                                <section class=style::room_main>
-                                    <section class=format!(
-                                        "g-panel g-panel-strong {}",
-                                        style::room_header,
-                                    )>
-                                        <div class=style::room_header_top>
-                                            <p class="g-section-label">"Table ledger"</p>
-                                            <h1 class=style::room_title>{room_title}</h1>
-                                            <p class=style::room_summary>
-                                                "Keep the next throw and the shared ledger in one place so everyone reads the same room state."
-                                            </p>
-                                        </div>
-
-                                        <div class=style::room_header_meta>
-                                            <span class=style::room_id_badge>{room_id}</span>
-                                            <span class=style::room_note_badge>{room_note}</span>
-                                        </div>
-                                    </section>
-
-                                    <RollEditor on_roll=process_roll />
-                                    <RollFeed feed=feed loading_more=false load_older_rolls=load_older_rolls />
-                                </section>
-
-                                <aside class=style::room_rail>
-                                    <section class=format!(
-                                        "g-panel g-panel-strong {}",
-                                        style::presence_card,
-                                    )>
-                                        <p class="g-section-label">"Live in room"</p>
-                                        <h2 class=style::presence_title>"Players at the table"</h2>
-                                        <p class=style::presence_summary>
-                                            "Presence is stubbed for now, but the room already reads like a live shared table."
-                                        </p>
-                                        <ul class=style::roster_list>
-                                            {live_users
-                                                .into_iter()
-                                                .map(|entry| {
-                                                    view! { <RosterRow entry=entry tone="live" /> }
-                                                })
-                                                .collect_view()}
-                                        </ul>
-                                    </section>
-
-                                    <section class=format!("g-panel {}", style::pending_card)>
-                                        <p class="g-section-label">"Waiting for approval"</p>
-                                        <h2 class=style::presence_title>"Soft presence"</h2>
-                                        <p class=style::presence_summary>
-                                            "Keep pending players visible without turning the rail into a moderation dashboard."
-                                        </p>
-
-                                        {if pending_users.is_empty() {
-                                            view! {
-                                                <p class=style::presence_empty>
-                                                    "No one is waiting for approval."
-                                                </p>
-                                            }
-                                                .into_any()
-                                        } else {
-                                            view! {
-                                                <ul class=style::roster_list>
-                                                    {pending_users
-                                                        .into_iter()
-                                                        .map(|entry| {
-                                                            view! { <RosterRow entry=entry tone="pending" /> }
-                                                        })
-                                                        .collect_view()}
-                                                </ul>
-                                            }
-                                                .into_any()
-                                        }}
-                                    </section>
-                                </aside>
-                            </div>
-                        }
-                            .into_any()
-                    }
-                    None => {
-                        view! {
-                            <section class=style::room_main>
-                                <section class=format!(
-                                    "g-panel g-panel-strong {}",
-                                    style::not_found_card,
-                                )>
-                                    <p class="g-section-label">"Room lookup"</p>
-                                    <h1 class=style::room_title>"Room not found."</h1>
-                                    <p class=style::room_summary>
-                                        {format!(
-                                            "No local room stub matches \"{}\" yet. Try another room ID or head back to the active tables board.",
-                                            attempted_room_id
-                                        )}
-                                    </p>
-                                </section>
+                            <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+                                <p class="g-section-label">"Room access"</p>
+                                <h1 class=style::room_title>"Loading room..."</h1>
+                                <p class=style::room_summary>
+                                    "Checking your access and opening the live room stream."
+                                </p>
                             </section>
                         }
                             .into_any()
                     }
+                    RoomAccessState::Error(message) => {
+                        view! {
+                            <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+                                <p class="g-section-label">"Room lookup"</p>
+                                <h1 class=style::room_title>"Room unavailable."</h1>
+                                <p class=style::room_summary>{message}</p>
+                            </section>
+                        }
+                            .into_any()
+                    }
+                    RoomAccessState::Ready(viewer) => {
+                        match viewer.viewer_status {
+                            RoomViewerStatus::Pending => {
+                                view! {
+                                    <section class=format!(
+                                        "g-panel g-panel-strong {}",
+                                        style::state_card,
+                                    )>
+                                        <p class="g-section-label">"Waiting for approval"</p>
+                                        <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
+                                        <p class=style::room_summary>
+                                            "Your join request is in. Stay on this page while the room admin approves access."
+                                        </p>
+                                        <div class=style::room_header_meta>
+                                            <span class=style::room_id_badge>
+                                                {format!("#{}", viewer.room.id.into_inner())}
+                                            </span>
+                                            <span class=style::room_note_badge>"Pending"</span>
+                                        </div>
+                                        {move || {
+                                            stream_error
+                                                .get()
+                                                .map(|message| {
+                                                    view! { <p class=style::page_feedback>{message}</p> }
+                                                })
+                                        }}
+                                    </section>
+                                }
+                                    .into_any()
+                            }
+                            RoomViewerStatus::Kicked => {
+                                view! {
+                                    <section class=format!(
+                                        "g-panel g-panel-strong {}",
+                                        style::state_card,
+                                    )>
+                                        <p class="g-section-label">"Room access revoked"</p>
+                                        <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
+                                        <p class=style::room_summary>
+                                            "You no longer have access to this room. Head back to the rooms board for another table."
+                                        </p>
+                                        <div class=style::room_header_meta>
+                                            <span class=style::room_id_badge>
+                                                {format!("#{}", viewer.room.id.into_inner())}
+                                            </span>
+                                            <span class=style::room_note_badge>"Kicked"</span>
+                                        </div>
+                                    </section>
+                                }
+                                    .into_any()
+                            }
+                            RoomViewerStatus::Creator | RoomViewerStatus::Joined => {
+                                let room = room.get().unwrap_or(viewer.room.clone());
+
+                                view! {
+                                    <div class=format!("g-page-shell-split {}", style::room_layout)>
+                                        <section class=style::room_main>
+                                            <section class=format!(
+                                                "g-panel g-panel-strong {}",
+                                                style::room_header,
+                                            )>
+                                                <div class=style::room_header_top>
+                                                    <p class="g-section-label">"Table ledger"</p>
+                                                    <h1 class=style::room_title>{room.name.clone()}</h1>
+                                                    <p class=style::room_summary>
+                                                        "Keep live presence, shared room activity, and the next throw in the same place so the table stays synchronized."
+                                                    </p>
+                                                </div>
+
+                                                <div class=style::room_header_meta>
+                                                    <span class=style::room_id_badge>
+                                                        {format!("#{}", room.id.into_inner())}
+                                                    </span>
+                                                    <span class=style::room_note_badge>
+                                                        {if viewer.can_manage_members {
+                                                            "Admin".to_string()
+                                                        } else {
+                                                            "Joined".to_string()
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        class=style::stream_badge
+                                                        data-connected=move || {
+                                                            if stream_connected.get() { "true" } else { "false" }
+                                                        }
+                                                    >
+                                                        {move || {
+                                                            if stream_connected.get() {
+                                                                "Live stream open".to_string()
+                                                            } else {
+                                                                "Live stream reconnecting".to_string()
+                                                            }
+                                                        }}
+                                                    </span>
+                                                </div>
+                                            </section>
+
+                                            {move || {
+                                                if !live_ready.get() {
+                                                    view! {
+                                                        <section class=format!(
+                                                            "g-panel g-panel-strong {}",
+                                                            style::state_card,
+                                                        )>
+                                                            <p class="g-section-label">"Opening stream"</p>
+                                                            <h2 class=style::state_title>
+                                                                "Waiting for the initial room snapshot."
+                                                            </h2>
+                                                            <p class=style::room_summary>
+                                                                "The page switches to the live room as soon as the server sends the current roster and roll history."
+                                                            </p>
+                                                        </section>
+                                                    }
+                                                        .into_any()
+                                                } else {
+                                                    view! {
+                                                        <>
+                                                            {move || {
+                                                                stream_error
+                                                                    .get()
+                                                                    .map(|message| {
+                                                                        view! { <p class=style::page_feedback>{message}</p> }
+                                                                    })
+                                                            }}
+                                                            {move || {
+                                                                roll_error
+                                                                    .get()
+                                                                    .map(|message| {
+                                                                        view! { <p class=style::page_feedback>{message}</p> }
+                                                                    })
+                                                            }} <RollEditor on_roll=on_roll />
+                                                            <RollFeed
+                                                                feed=roll_feed
+                                                                loading_more=loading_more
+                                                                load_older_rolls=load_older_rolls
+                                                            />
+                                                        </>
+                                                    }
+                                                        .into_any()
+                                                }
+                                            }}
+                                        </section>
+
+                                        <aside class=style::room_rail>
+                                            <ActiveUserFeed
+                                                active_members=active_members
+                                                creator_id=room.creator_id.into_inner()
+                                                connected=stream_connected
+                                            />
+
+                                            <Show when=move || viewer.can_manage_members>
+                                                <RoomMemberManager
+                                                    members=managed_members
+                                                    busy_user_id=action_busy_user_id
+                                                    action_error=action_error
+                                                    on_allow=on_allow_member
+                                                    on_request_kick=on_request_kick
+                                                />
+                                            </Show>
+                                        </aside>
+                                    </div>
+                                }
+                                    .into_any()
+                            }
+                        }
+                    }
                 }}
             </section>
+
+            <Dialog
+                open=move || kick_dialog_member.get().is_some()
+                label="Member controls"
+                title="Confirm kick".to_string()
+                summary="Kicked users lose access immediately and stay visible in the kicked list so they can be reinstated later."
+                    .to_string()
+                on_close=on_cancel_kick
+            >
+                <p class=style::room_summary>
+                    {move || {
+                        kick_dialog_member
+                            .get()
+                            .map(|member| {
+                                format!(
+                                    "{} will lose access to the room immediately.",
+                                    member.username.as_str(),
+                                )
+                            })
+                            .unwrap_or_default()
+                    }}
+                </p>
+                <div class=style::dialog_actions>
+                    <button
+                        class="g-button-ghost"
+                        type="button"
+                        on:click=move |_| on_cancel_kick.run(())
+                    >
+                        "Cancel"
+                    </button>
+                    <button
+                        class="g-button-action"
+                        type="button"
+                        on:click=move |_| on_confirm_kick.run(())
+                    >
+                        "Confirm kick"
+                    </button>
+                </div>
+            </Dialog>
         </section>
-    }
-}
-
-#[component]
-fn RosterRow(entry: RoomRosterEntry, tone: &'static str) -> impl IntoView {
-    let display_name = entry.display_name;
-    let presence_note = entry.presence_note;
-    let status_label = entry.status_label;
-    let status_label_for_show = status_label.clone();
-
-    view! {
-        <li class=style::roster_row data-tone=tone>
-            <div class=style::roster_identity>
-                <strong class=style::roster_name>{display_name}</strong>
-                <p class=style::roster_note>{presence_note}</p>
-            </div>
-            <Show when=move || status_label_for_show.is_some()>
-                <span class=style::roster_status>{status_label.clone().unwrap_or_default()}</span>
-            </Show>
-        </li>
     }
 }
 
 #[component]
 pub fn RoomPage() -> impl IntoView {
     let params = use_params_map();
+    let access_state = RwSignal::new(RoomAccessState::Loading);
+    let current_room_id = RwSignal::new(None::<RoomId>);
+    let room = RwSignal::new(None::<Room>);
+    let active_members = RwSignal::new(Vec::<ActiveRoomMember>::new());
+    let managed_members = RwSignal::new(Vec::<RoomMemberSummary>::new());
+    let roll_feed = RwSignal::new(DiceRollFeed::new());
+    let next_before_id = RwSignal::new(None::<RoomRollId>);
+    let loading_more = RwSignal::new(false);
+    let stream_connected = RwSignal::new(false);
+    let live_ready = RwSignal::new(false);
+    let stream_error = RwSignal::new(None::<String>);
+    let roll_error = RwSignal::new(None::<String>);
+    let action_error = RwSignal::new(None::<String>);
+    let action_busy_user_id = RwSignal::new(None::<i64>);
+    let kick_dialog_member = RwSignal::new(None::<RoomMemberSummary>);
 
-    view! {
-        {move || {
-            let attempted_room_id = normalize_room_id_input(
-                &params.get().get("roomId").unwrap_or_default(),
-            );
-            let room = find_room_by_id(&attempted_room_id);
+    #[cfg(feature = "hydrate")]
+    let room_stream = Rc::new(RefCell::new(None::<RoomEventStream>));
+    #[cfg(feature = "hydrate")]
+    let pending_poll = Rc::new(RefCell::new(None::<IntervalHandle>));
+    #[cfg(feature = "hydrate")]
+    let subscription_target = RwSignal::new(RoomSubscriptionTarget::None);
 
-            room_page_content(room, &attempted_room_id).into_any()
-        }}
-    }
-}
+    Effect::new(move |_| {
+        let raw_room_id = params.get().get("roomId").unwrap_or_default();
 
-#[cfg(test)]
-#[cfg(feature = "ssr")]
-mod tests {
-    use leptos::prelude::*;
+        current_room_id.set(None);
+        room.set(None);
+        active_members.set(Vec::new());
+        managed_members.set(Vec::new());
+        roll_feed.set(DiceRollFeed::new());
+        next_before_id.set(None);
+        loading_more.set(false);
+        stream_connected.set(false);
+        live_ready.set(false);
+        stream_error.set(None);
+        roll_error.set(None);
+        action_error.set(None);
+        action_busy_user_id.set(None);
+        kick_dialog_member.set(None);
 
-    use crate::client::pages::room_stubs::{find_room_by_id, normalize_room_id_input};
+        let trimmed_room_id = raw_room_id.trim().to_string();
+        if trimmed_room_id.is_empty() {
+            access_state.set(RoomAccessState::Error("Room not found.".to_string()));
+            return;
+        }
 
-    use super::{room_page_content, style};
+        let Ok(room_id) = trimmed_room_id.parse::<i64>() else {
+            access_state.set(RoomAccessState::Error(
+                "Room IDs use digits only.".to_string(),
+            ));
+            return;
+        };
 
-    fn render_room_page_html(room_id: &str) -> String {
-        let owner = Owner::new();
-        owner.set();
+        let room_id = RoomId(room_id);
+        current_room_id.set(Some(room_id));
+        access_state.set(RoomAccessState::Loading);
 
-        let normalized_room_id = normalize_room_id_input(room_id);
-        let room = find_room_by_id(&normalized_room_id);
+        spawn_local(async move {
+            match get_room_access_request(room_id.into_inner()).await {
+                Ok(viewer_state) => {
+                    room.set(Some(viewer_state.room.clone()));
+                    access_state.set(RoomAccessState::Ready(viewer_state));
+                }
+                Err(message) => access_state.set(RoomAccessState::Error(message)),
+            }
+        });
+    });
 
-        view! { <>{room_page_content(room, &normalized_room_id)}</> }.to_html()
-    }
+    #[cfg(feature = "hydrate")]
+    Effect::new({
+        let room_stream = room_stream.clone();
+        let pending_poll = pending_poll.clone();
 
-    #[test]
-    fn room_page_renders_table_first_layout_for_known_room() {
-        let html = render_room_page_html("moonlit-ledger");
+        move |_| {
+            let next_target = match (current_room_id.get(), access_state.get()) {
+                (Some(room_id), RoomAccessState::Ready(viewer_state)) => {
+                    match viewer_state.viewer_status {
+                        RoomViewerStatus::Creator | RoomViewerStatus::Joined => {
+                            RoomSubscriptionTarget::Stream(room_id)
+                        }
+                        RoomViewerStatus::Pending => RoomSubscriptionTarget::Pending(room_id),
+                        RoomViewerStatus::Kicked => RoomSubscriptionTarget::None,
+                    }
+                }
+                _ => RoomSubscriptionTarget::None,
+            };
 
-        assert!(html.contains(style::room_shell));
-        assert!(html.contains("Moonlit Ledger"));
-        assert!(html.contains("moonlit-ledger"));
-        assert!(html.contains("Active table"));
-        assert!(html.contains("href=\"/rooms\""));
-        assert!(html.contains("Live in room"));
-        assert!(html.contains("Waiting for approval"));
-        assert!(html.contains("Compose the next throw."));
-        assert!(html.contains("Room Activity"));
-        assert!(html.contains("Aria Vale"));
-        assert!(html.contains("d20 + 4"));
+            if subscription_target.get_untracked() == next_target {
+                return;
+            }
 
-        let header_index = html.find("Moonlit Ledger").expect("expected room header");
-        let editor_index = html
-            .find("Compose the next throw.")
-            .expect("expected roll editor");
-        let feed_index = html.find("Room Activity").expect("expected room activity");
-        let rail_index = html.find("Live in room").expect("expected live roster");
+            room_stream.borrow_mut().take();
+            pending_poll.borrow_mut().take();
+            subscription_target.set(next_target);
 
-        assert!(header_index < editor_index);
-        assert!(editor_index < feed_index);
-        assert!(feed_index < rail_index);
+            match next_target {
+                RoomSubscriptionTarget::Stream(room_id) => {
+                    live_ready.set(false);
+                    stream_error.set(None);
 
-        let no_pending_html = render_room_page_html("north-gate-audit");
-        assert!(no_pending_html.contains("No one is waiting for approval."));
-    }
+                    let stream = RoomEventStream::connect(
+                        room_id,
+                        {
+                            let room = room;
+                            let active_members = active_members;
+                            let managed_members = managed_members;
+                            let roll_feed = roll_feed;
+                            let next_before_id = next_before_id;
+                            let live_ready = live_ready;
+                            let stream_connected = stream_connected;
+                            let access_state = access_state;
 
-    #[test]
-    fn room_page_renders_not_found_state_for_unknown_room() {
-        let html = render_room_page_html("  unknown%20room  ");
+                            move |event| match event {
+                                RoomStreamEvent::Snapshot { snapshot } => {
+                                    room.set(Some(snapshot.room.clone()));
+                                    active_members.set(snapshot.active_members);
+                                    managed_members.set(snapshot.managed_members);
+                                    next_before_id.set(snapshot.recent_rolls.next_before_id);
+                                    roll_feed.set(room_roll_feed_from_page(&snapshot.recent_rolls));
+                                    live_ready.set(true);
+                                    stream_connected.set(true);
 
-        assert!(html.contains(style::room_shell));
-        assert!(html.contains("Room not found."));
-        assert!(html.contains("unknown room"));
-        assert!(html.contains("href=\"/rooms\""));
-    }
+                                    access_state.update(|state| {
+                                        if let RoomAccessState::Ready(viewer_state) = state {
+                                            viewer_state.room = snapshot.room.clone();
+                                            viewer_state.can_manage_members =
+                                                snapshot.can_manage_members;
+                                        }
+                                    });
+                                }
+                                RoomStreamEvent::PresenceChanged {
+                                    active_members: next_members,
+                                } => {
+                                    active_members.set(next_members);
+                                    stream_connected.set(true);
+                                }
+                                RoomStreamEvent::ManagedMembersChanged {
+                                    managed_members: next_members,
+                                } => {
+                                    managed_members.set(next_members);
+                                    stream_connected.set(true);
+                                }
+                                RoomStreamEvent::RollCreated { roll } => {
+                                    roll_feed.update(|feed| append_live_room_roll(feed, &roll));
+                                    stream_connected.set(true);
+                                }
+                                RoomStreamEvent::AccessRevoked { reason } => {
+                                    stream_connected.set(false);
+                                    stream_error.set(Some(reason.clone()));
+                                    live_ready.set(false);
+                                    active_members.set(Vec::new());
+                                    managed_members.set(Vec::new());
+                                    roll_feed.set(DiceRollFeed::new());
+                                    next_before_id.set(None);
 
-    #[test]
-    fn room_page_styles_establish_split_layout() {
-        let styles = include_str!("room.module.scss");
+                                    if let Some(room) = room.get_untracked() {
+                                        access_state.set(RoomAccessState::Ready(RoomViewerState {
+                                            room,
+                                            viewer_status: RoomViewerStatus::Kicked,
+                                            can_manage_members: false,
+                                        }));
+                                    } else {
+                                        access_state.set(RoomAccessState::Error(reason));
+                                    }
+                                }
+                            }
+                        },
+                        move |connected| {
+                            stream_connected.set(connected);
+                            if connected {
+                                stream_error.set(None);
+                            }
+                        },
+                        move |message| {
+                            stream_connected.set(false);
+                            stream_error.set(Some(message));
+                        },
+                    );
 
-        assert!(styles.contains(".room-layout {"));
-        assert!(styles.contains("display: grid;"));
-        assert!(styles.contains("gap: var(--grid-gap);"));
-    }
+                    match stream {
+                        Ok(stream) => {
+                            room_stream.borrow_mut().replace(stream);
+                        }
+                        Err(message) => {
+                            stream_connected.set(false);
+                            stream_error.set(Some(message));
+                        }
+                    }
+                }
+                RoomSubscriptionTarget::Pending(room_id) => {
+                    stream_connected.set(false);
+                    live_ready.set(false);
+
+                    let poll = IntervalHandle::start(4_000, {
+                        let access_state = access_state;
+                        let room = room;
+                        move || {
+                            spawn_local(async move {
+                                match get_room_access_request(room_id.into_inner()).await {
+                                    Ok(viewer_state) => {
+                                        room.set(Some(viewer_state.room.clone()));
+                                        access_state.set(RoomAccessState::Ready(viewer_state));
+                                        stream_error.set(None);
+                                    }
+                                    Err(message) => stream_error.set(Some(message)),
+                                }
+                            });
+                        }
+                    });
+
+                    match poll {
+                        Ok(poll) => {
+                            pending_poll.borrow_mut().replace(poll);
+                        }
+                        Err(message) => stream_error.set(Some(message)),
+                    }
+                }
+                RoomSubscriptionTarget::None => {
+                    stream_connected.set(false);
+                    live_ready.set(false);
+                }
+            }
+        }
+    });
+
+    let on_roll = Callback::new(move |expression: String| {
+        let Some(room_id) = current_room_id.get_untracked() else {
+            return;
+        };
+
+        roll_error.set(None);
+        spawn_local(async move {
+            if let Err(message) = add_room_roll_request(room_id.into_inner(), &expression).await {
+                roll_error.set(Some(message));
+            }
+        });
+    });
+
+    let load_older_rolls = Callback::new(move |_| {
+        let Some(room_id) = current_room_id.get_untracked() else {
+            return;
+        };
+        let Some(before_id) = next_before_id.get_untracked() else {
+            return;
+        };
+        if loading_more.get_untracked() {
+            return;
+        }
+
+        loading_more.set(true);
+        stream_error.set(None);
+
+        spawn_local(async move {
+            match list_room_rolls_request(room_id.into_inner(), Some(before_id)).await {
+                Ok(page) => {
+                    next_before_id.set(page.next_before_id);
+                    roll_feed.update(|feed| prepend_room_roll_page(feed, &page));
+                }
+                Err(message) => stream_error.set(Some(message)),
+            }
+            loading_more.set(false);
+        });
+    });
+
+    let on_allow_member = Callback::new(move |user_id: UserId| {
+        let Some(room_id) = current_room_id.get_untracked() else {
+            return;
+        };
+        let user_id_value = user_id.into_inner();
+
+        action_error.set(None);
+        action_busy_user_id.set(Some(user_id_value));
+
+        spawn_local(async move {
+            if let Err(message) = allow_member_request(room_id.into_inner(), user_id_value).await {
+                action_error.set(Some(message));
+            }
+            action_busy_user_id.set(None);
+        });
+    });
+
+    let on_request_kick = Callback::new(move |member: RoomMemberSummary| {
+        kick_dialog_member.set(Some(member));
+    });
+
+    let on_cancel_kick = Callback::new(move |_| {
+        kick_dialog_member.set(None);
+    });
+
+    let on_confirm_kick = Callback::new(move |_| {
+        let Some(room_id) = current_room_id.get_untracked() else {
+            return;
+        };
+        let Some(member) = kick_dialog_member.get_untracked() else {
+            return;
+        };
+
+        let user_id = member.user_id.into_inner();
+        action_error.set(None);
+        action_busy_user_id.set(Some(user_id));
+
+        spawn_local(async move {
+            if let Err(message) = kick_member_request(room_id.into_inner(), user_id).await {
+                action_error.set(Some(message));
+            } else {
+                kick_dialog_member.set(None);
+            }
+            action_busy_user_id.set(None);
+        });
+    });
+
+    room_page_content(
+        access_state.into(),
+        room.into(),
+        active_members.into(),
+        managed_members.into(),
+        roll_feed.into(),
+        loading_more.into(),
+        stream_connected.into(),
+        live_ready.into(),
+        stream_error.into(),
+        roll_error.into(),
+        action_error.into(),
+        action_busy_user_id.into(),
+        kick_dialog_member.into(),
+        load_older_rolls,
+        on_roll,
+        on_allow_member,
+        on_request_kick,
+        on_cancel_kick,
+        on_confirm_kick,
+    )
 }

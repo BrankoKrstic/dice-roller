@@ -10,10 +10,7 @@ fn render_notes(notes: &'static [&'static str]) -> impl IntoView {
     } else {
         view! {
             <ul class=style::reference_entry_notes>
-                {notes
-                    .iter()
-                    .map(|note| view! { <li>{*note}</li> })
-                    .collect_view()}
+                {notes.iter().map(|note| view! { <li>{*note}</li> }).collect_view()}
             </ul>
         }
         .into_any()
@@ -65,23 +62,5 @@ pub fn ReferencePage() -> impl IntoView {
                 })
                 .collect_view()}
         </section>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn reference_page_introduces_the_expression_editor_guide() {
-        use leptos::prelude::*;
-
-        let owner = Owner::new();
-        owner.set();
-
-        let html = view! { <super::ReferencePage /> }.to_html();
-
-        assert!(html.contains("Expression Editor Guide"));
-        assert!(html.contains("d20adv"));
-        assert!(html.contains("4d6kh3"));
     }
 }

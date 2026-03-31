@@ -108,6 +108,15 @@ pub struct RoomMemberSummary {
     pub status: RoomMembershipStatus,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoomViewerStatus {
+    Creator,
+    Joined,
+    Pending,
+    Kicked,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoomRollSummary {
     pub id: RoomRollId,
@@ -128,11 +137,26 @@ pub struct RoomRollPage {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct JoinedRoomSummary {
+    pub room: Room,
+    pub can_manage_members: bool,
+    pub active_member_count: usize,
+    pub latest_roll: Option<RoomRollSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RoomViewerState {
+    pub room: Room,
+    pub viewer_status: RoomViewerStatus,
+    pub can_manage_members: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RoomStreamSnapshot {
     pub room: Room,
     pub can_manage_members: bool,
     pub active_members: Vec<ActiveRoomMember>,
-    pub pending_members: Vec<RoomMemberSummary>,
+    pub managed_members: Vec<RoomMemberSummary>,
     pub recent_rolls: RoomRollPage,
 }
 
@@ -145,8 +169,8 @@ pub enum RoomStreamEvent {
     PresenceChanged {
         active_members: Vec<ActiveRoomMember>,
     },
-    PendingMembersChanged {
-        pending_members: Vec<RoomMemberSummary>,
+    ManagedMembersChanged {
+        managed_members: Vec<RoomMemberSummary>,
     },
     RollCreated {
         roll: RoomRollSummary,

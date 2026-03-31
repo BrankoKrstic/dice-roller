@@ -413,6 +413,7 @@ pub fn PresetEditor(
                         <Dialog
                             open=save_dialog_open
                             title="Save preset".to_string()
+                            label="Preset controls"
                             summary="Name this expression so it can be dropped back into the editor in one click."
                                 .to_string()
                             on_close=dismiss_dialog
@@ -470,6 +471,7 @@ pub fn PresetEditor(
                         <Dialog
                             open=delete_dialog_open
                             title="Archive preset".to_string()
+                            label="Preset controls"
                             summary="Archived presets leave the quick rail so the editor only keeps active moves."
                                 .to_string()
                             on_close=dismiss_dialog

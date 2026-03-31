@@ -1,50 +1,40 @@
-use leptos::{ev::Event, prelude::*};
+use leptos::{prelude::*, task::spawn_local};
+use leptos_router::hooks::use_navigate;
+use web_sys::SubmitEvent;
 
-use super::room_stubs::{RoomSummary, join_target_from_input, room_route, room_summaries};
+use crate::{
+    client::utils::rooms::{
+        active_member_count_label, join_room_request, latest_roll_activity_line,
+        list_joined_rooms_request, parse_room_id_input, room_route,
+    },
+    shared::data::room::JoinedRoomSummary,
+};
 
 stylance::import_style!(style, "rooms.module.scss");
 
-fn live_user_count_label(room: &RoomSummary) -> String {
-    let count = room.live_users.len();
-    if count == 1 {
-        "1 live in room".to_string()
-    } else {
-        format!("{count} live in room")
-    }
+#[derive(Debug, Clone, PartialEq)]
+enum JoinedRoomsState {
+    Loading,
+    Loaded(Vec<JoinedRoomSummary>),
+    Error(String),
 }
 
-fn live_user_preview(room: &RoomSummary) -> String {
-    let names = room
-        .live_users
-        .iter()
-        .map(|entry| entry.display_name.as_str())
-        .collect::<Vec<_>>();
-
-    match names.as_slice() {
-        [] => "Nobody is seated yet.".to_string(),
-        [one] => format!("{one} is already at the table."),
-        [one, two] => format!("{one} and {two} are already at the table."),
-        [one, two, rest @ ..] => {
-            format!(
-                "{one}, {two}, and {} more are already at the table.",
-                rest.len()
-            )
-        }
-    }
-}
-
-fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl IntoView {
-    let join_input = RwSignal::new(initial_join_input.to_string());
-    let join_target = Memo::new(move |_| join_target_from_input(&join_input.get()));
-
+fn rooms_page_content(
+    rooms_state: Signal<JoinedRoomsState>,
+    join_input: RwSignal<String>,
+    joining: Signal<bool>,
+    join_error: RwSignal<Option<String>>,
+) -> impl IntoView {
     view! {
         <section class="g-page g-page-shell">
             <section class=format!("g-panel g-panel-strong {}", style::launch_panel)>
                 <div class=style::launch_header>
                     <p class="g-section-label">"Ledger stage"</p>
-                    <h1 class="g-section-title">"Open a table or step back into an active room."</h1>
+                    <h1 class="g-section-title">
+                        "Open a table or step back into an active room."
+                    </h1>
                     <p class="g-section-summary">
-                        "Room creation, membership, and validation stay stubbed in this pass. The page is here to frame active tables without pretending the backend already exists."
+                        "Create a fresh room, jump into an existing table by ID, or reopen one of your joined rooms from the live board below."
                     </p>
                 </div>
 
@@ -53,14 +43,14 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                         <p class="g-section-label">"Start a room"</p>
                         <h2 class=style::launch_card_title>"Create a room"</h2>
                         <p class=style::launch_card_summary>
-                            "Keep the entry point visible so the rooms board feels complete, but leave the control honest until creation wiring lands."
+                            "Spin up a new shared ledger, land in the room immediately, and handle moderation from the room rail."
                         </p>
                         <div class=style::launch_action_row>
-                            <button id="rooms-create-room" class="g-button-action" type="button" disabled>
+                            <a id="rooms-create-room" class="g-button-action" href="/rooms/create">
                                 "Create a room"
-                            </button>
+                            </a>
                             <p class=style::launch_helper>
-                                "Creation wiring arrives in a later pass. Nothing is persisted yet."
+                                "The create flow only asks for the room name. Member requests and roster changes live in the room itself."
                             </p>
                         </div>
                     </article>
@@ -71,30 +61,40 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                         <label class="g-field-label" for="rooms-join-room-id">
                             "Room ID"
                         </label>
-                        <form class=style::join_row method="get">
+                        <div class=style::join_row>
                             <input
                                 id="rooms-join-room-id"
                                 class="g-text-input"
                                 type="text"
-                                placeholder="copper-annex"
+                                inputmode="numeric"
+                                placeholder="42"
                                 prop:value=move || join_input.get()
-                                on:input=move |event: Event| join_input.set(event_target_value(&event))
+                                on:input=move |event| {
+                                    join_error.set(None);
+                                    join_input.set(event_target_value(&event));
+                                }
                             />
                             <div class=style::join_action_slot>
                                 <button
                                     id="rooms-join-submit"
                                     class="g-button-action"
                                     type="submit"
-                                    disabled=move || join_target.get().is_none()
-                                    formaction=move || join_target.get().unwrap_or_default()
+                                    disabled=move || joining.get()
                                 >
-                                    "Join room"
+                                    {move || if joining.get() { "Joining..." } else { "Join room" }}
                                 </button>
                             </div>
-                        </form>
+                        </div>
                         <p class=style::join_helper>
-                            "Room validation and membership wiring are still pending. This action only exposes the room route for now."
+                            "Submitting a request redirects you to the room page immediately. Pending users wait there until admitted."
                         </p>
+                        {move || {
+                            join_error
+                                .get()
+                                .map(|message| {
+                                    view! { <p class=style::join_feedback>{message}</p> }
+                                })
+                        }}
                     </article>
                 </div>
             </section>
@@ -104,67 +104,115 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
                     <p class="g-section-label">"Active tables"</p>
                     <h2 class="g-section-title">"Joined rooms"</h2>
                     <p class="g-section-summary">
-                        "Each card is a current table snapshot: room note, who is live, and the latest ledger motion waiting behind the door."
+                        "Each card reflects the live room list for your account, including room presence and the latest ledger motion."
                     </p>
                 </div>
 
-                {if rooms.is_empty() {
-                    view! {
-                        <div class=style::empty_state>
-                            <h3 class=style::empty_state_title>"No joined rooms yet."</h3>
-                            <p class=style::empty_state_copy>
-                                "Use the create or join controls above once room wiring is ready."
-                            </p>
-                        </div>
+                {move || match rooms_state.get() {
+                    JoinedRoomsState::Loading => {
+                        view! {
+                            <div class=style::empty_state>
+                                <h3 class=style::empty_state_title>"Loading joined rooms..."</h3>
+                                <p class=style::empty_state_copy>
+                                    "Pulling your current room list from the server."
+                                </p>
+                            </div>
+                        }
+                            .into_any()
                     }
-                        .into_any()
-                } else {
-                    view! {
-                        <div class=style::rooms_grid>
-                            {rooms
-                                .into_iter()
-                                .map(|room| {
-                                    let live_count = live_user_count_label(&room);
-                                    let live_preview = live_user_preview(&room);
-                                    let room_target = room_route(&room.room_id);
-
-                                    view! {
-                                        <article class=style::room_card>
-                                            <div class=style::room_card_header>
-                                                <div class=style::room_identity>
-                                                    <p class="g-section-label">{room.room_note.clone()}</p>
-                                                    <h3 class=style::room_title>{room.room_title.clone()}</h3>
-                                                </div>
-                                                <span class=style::room_id_badge>{room.room_id.clone()}</span>
-                                            </div>
-
-                                            <dl class=style::room_meta_list>
-                                                <div class=style::room_meta_row>
-                                                    <dt>"Presence"</dt>
-                                                    <dd>{live_count}</dd>
-                                                </div>
-                                                <div class=style::room_meta_row>
-                                                    <dt>"Who is here"</dt>
-                                                    <dd>{live_preview}</dd>
-                                                </div>
-                                                <div class=style::room_meta_row>
-                                                    <dt>"Latest motion"</dt>
-                                                    <dd>{room.recent_activity_line.clone()}</dd>
-                                                </div>
-                                            </dl>
-
-                                            <div class=style::room_card_footer>
-                                                <a class="g-button-action" href=room_target>
-                                                    "Enter room"
-                                                </a>
-                                            </div>
-                                        </article>
-                                    }
-                                })
-                                .collect_view()}
-                        </div>
+                    JoinedRoomsState::Error(message) => {
+                        view! {
+                            <div class=style::empty_state>
+                                <h3 class=style::empty_state_title>
+                                    "Could not load joined rooms."
+                                </h3>
+                                <p class=style::empty_state_copy>{message}</p>
+                            </div>
+                        }
+                            .into_any()
                     }
-                        .into_any()
+                    JoinedRoomsState::Loaded(rooms) => {
+                        if rooms.is_empty() {
+                            view! {
+                                <div class=style::empty_state>
+                                    <h3 class=style::empty_state_title>"No joined rooms yet."</h3>
+                                    <p class=style::empty_state_copy>
+                                        "Create a room or request to join one by ID to build your active board."
+                                    </p>
+                                </div>
+                            }
+                                .into_any()
+                        } else {
+                            view! {
+                                <div class=style::rooms_grid>
+                                    {rooms
+                                        .into_iter()
+                                        .map(|room| {
+                                            let live_count = active_member_count_label(
+                                                room.active_member_count,
+                                            );
+                                            let activity_line = latest_roll_activity_line(
+                                                &room.latest_roll,
+                                            );
+                                            let room_target = room_route(room.room.id.into_inner());
+
+                                            view! {
+                                                <article class=style::room_card>
+                                                    <div class=style::room_card_header>
+                                                        <div class=style::room_identity>
+                                                            <p class="g-section-label">
+                                                                {if room.can_manage_members {
+                                                                    "Admin table".to_string()
+                                                                } else {
+                                                                    "Joined table".to_string()
+                                                                }}
+                                                            </p>
+                                                            <h3 class=style::room_title>{room.room.name.clone()}</h3>
+                                                        </div>
+                                                        <span class=style::room_id_badge>
+                                                            {format!("#{}", room.room.id.into_inner())}
+                                                        </span>
+                                                    </div>
+
+                                                    <dl class=style::room_meta_list>
+                                                        <div class=style::room_meta_row>
+                                                            <dt>"Presence"</dt>
+                                                            <dd>{live_count}</dd>
+                                                        </div>
+                                                        <div class=style::room_meta_row>
+                                                            <dt>"Who is here"</dt>
+                                                            <dd>
+                                                                {if room.active_member_count == 0 {
+                                                                    "Nobody is connected right now.".to_string()
+                                                                } else {
+                                                                    format!(
+                                                                        "{} player{} connected to the room stream.",
+                                                                        room.active_member_count,
+                                                                        if room.active_member_count == 1 { "" } else { "s" },
+                                                                    )
+                                                                }}
+                                                            </dd>
+                                                        </div>
+                                                        <div class=style::room_meta_row>
+                                                            <dt>"Latest motion"</dt>
+                                                            <dd>{activity_line}</dd>
+                                                        </div>
+                                                    </dl>
+
+                                                    <div class=style::room_card_footer>
+                                                        <a class="g-button-action" href=room_target>
+                                                            "Enter room"
+                                                        </a>
+                                                    </div>
+                                                </article>
+                                            }
+                                        })
+                                        .collect_view()}
+                                </div>
+                            }
+                                .into_any()
+                        }
+                    }
                 }}
             </section>
         </section>
@@ -173,88 +221,63 @@ fn rooms_page_content(rooms: Vec<RoomSummary>, initial_join_input: &str) -> impl
 
 #[component]
 pub fn RoomsPage() -> impl IntoView {
-    rooms_page_content(room_summaries(), "")
-}
+    let navigate = use_navigate();
+    let join_input = RwSignal::new(String::new());
+    let join_error = RwSignal::new(None::<String>);
+    let joining = RwSignal::new(false);
+    let rooms_state = RwSignal::new(JoinedRoomsState::Loading);
 
-#[cfg(test)]
-#[cfg(feature = "ssr")]
-mod tests {
-    use leptos::prelude::*;
+    Effect::new(move |_| {
+        if !cfg!(feature = "hydrate") {
+            return;
+        }
 
-    use crate::client::pages::room_stubs::room_summaries;
+        rooms_state.set(JoinedRoomsState::Loading);
+        spawn_local(async move {
+            match list_joined_rooms_request().await {
+                Ok(rooms) => rooms_state.set(JoinedRoomsState::Loaded(rooms)),
+                Err(message) => rooms_state.set(JoinedRoomsState::Error(message)),
+            }
+        });
+    });
 
-    use super::{RoomSummary, rooms_page_content};
+    let on_submit = move |event: SubmitEvent| {
+        event.prevent_default();
+        if joining.get_untracked() {
+            return;
+        }
 
-    fn render_rooms_page_html(rooms: Vec<RoomSummary>, join_input: &str) -> String {
-        let owner = Owner::new();
-        owner.set();
+        let room_id = match parse_room_id_input(&join_input.get_untracked()) {
+            Ok(room_id) => room_id,
+            Err(message) => {
+                join_error.set(Some(message));
+                return;
+            }
+        };
 
-        view! { <>{rooms_page_content(rooms, join_input)}</> }.to_html()
-    }
+        join_error.set(None);
+        joining.set(true);
 
-    fn element_tag<'a>(html: &'a str, marker: &str) -> &'a str {
-        let start = html.find(marker).expect("expected element marker");
-        let remainder = &html[start..];
-        let end = remainder.find('>').expect("expected tag close");
+        let navigate = navigate.clone();
+        spawn_local(async move {
+            match join_room_request(room_id).await {
+                Ok(_) => navigate(&room_route(room_id), Default::default()),
+                Err(message)
+                    if message.contains("membership is already joined")
+                        || message.contains("membership is already pending")
+                        || message.contains("membership is pending approval") =>
+                {
+                    navigate(&room_route(room_id), Default::default());
+                }
+                Err(message) => join_error.set(Some(message)),
+            }
+            joining.set(false);
+        });
+    };
 
-        &remainder[..=end]
-    }
-
-    #[test]
-    fn rooms_page_renders_launch_and_join_sections() {
-        let html = render_rooms_page_html(room_summaries(), "   ");
-        let create_button = element_tag(&html, "id=\"rooms-create-room\"");
-        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
-
-        assert!(html.contains("Start a room"));
-        assert!(html.contains("Create a room"));
-        assert!(
-            html.contains("Creation wiring arrives in a later pass. Nothing is persisted yet.")
-        );
-        assert!(create_button.contains("disabled"));
-        assert!(html.contains("Join by room ID"));
-        assert!(html.contains("Active tables"));
-        assert!(html.contains("Joined rooms"));
-        assert!(html.contains("<form"));
-        assert!(join_button.contains("disabled"));
-    }
-
-    #[test]
-    fn rooms_page_renders_joined_room_cards() {
-        let html = render_rooms_page_html(room_summaries(), "");
-
-        assert!(html.contains("Moonlit Ledger"));
-        assert!(html.contains("moonlit-ledger"));
-        assert!(html.contains("3 live in room"));
-        assert!(html.contains("Aria Vale, Tobin Ash, and 1 more are already at the table."));
-        assert!(html.contains("Latest motion: Mira logged a ward pulse at 14 total."));
-    }
-
-    #[test]
-    fn rooms_page_renders_empty_state_when_no_joined_rooms() {
-        let html = render_rooms_page_html(Vec::new(), "");
-        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
-
-        assert!(html.contains("No joined rooms yet."));
-        assert!(html.contains("Use the create or join controls above once room wiring is ready."));
-        assert!(join_button.contains("disabled"));
-    }
-
-    #[test]
-    fn rooms_page_exposes_encoded_join_target_for_trimmed_room_id() {
-        let html = render_rooms_page_html(room_summaries(), "  Table 7/West Wing  ");
-        let join_button = element_tag(&html, "id=\"rooms-join-submit\"");
-
-        assert!(join_button.contains("formaction=\"/room/Table%207%2FWest%20Wing\""));
-        assert!(!join_button.contains("disabled"));
-    }
-
-    #[test]
-    fn rooms_page_links_joined_room_cards_to_room_detail() {
-        let html = render_rooms_page_html(room_summaries(), "");
-
-        assert!(html.contains("href=\"/room/moonlit-ledger\""));
-        assert!(html.contains("href=\"/room/copper-annex\""));
-        assert!(html.contains("Enter room"));
+    view! {
+        <form on:submit=on_submit>
+            {rooms_page_content(rooms_state.into(), join_input, joining.into(), join_error)}
+        </form>
     }
 }

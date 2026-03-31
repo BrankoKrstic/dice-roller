@@ -7,11 +7,13 @@ use leptos_router::{
 use crate::client::{
     context::auth::use_auth_context,
     pages::{
-        home::HomePage, login::LoginPage, not_found::NotFoundPage, reference::ReferencePage,
-        register::RegisterPage, room::RoomPage, rooms::RoomsPage, stats::StatsPage,
+        create_room::CreateRoomPage, home::HomePage, login::LoginPage, not_found::NotFoundPage,
+        reference::ReferencePage, register::RegisterPage, room::RoomPage, rooms::RoomsPage,
+        stats::StatsPage,
     },
 };
 
+mod create_room;
 mod home;
 mod login;
 mod not_found;
@@ -39,6 +41,14 @@ pub fn AppRoutes() -> impl IntoView {
                     <ProtectedRoute
                         path=path!("/rooms")
                         view=RoomsPage
+                        condition=move || {
+                            if auth.loading.get() { None } else { Some(auth.user.get().is_some()) }
+                        }
+                        redirect_path=|| "/"
+                    />
+                    <ProtectedRoute
+                        path=path!("/rooms/create")
+                        view=CreateRoomPage
                         condition=move || {
                             if auth.loading.get() { None } else { Some(auth.user.get().is_some()) }
                         }

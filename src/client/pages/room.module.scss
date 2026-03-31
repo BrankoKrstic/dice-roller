@@ -14,12 +14,9 @@
 
 .room-main,
 .room-rail,
-.room-header-top,
 .room-header,
-.presence-card,
-.pending-card,
-.not-found-card,
-.roster-identity {
+.room-header-top,
+.state-card {
   display: grid;
 }
 
@@ -29,10 +26,8 @@
 }
 
 .room-header,
-.presence-card,
-.pending-card,
-.not-found-card {
-  gap: 0.85rem;
+.state-card {
+  gap: 0.9rem;
 }
 
 .room-header {
@@ -52,22 +47,44 @@
   gap: 0.55rem;
 }
 
-.room-title {
+.room-title,
+.state-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  line-height: 0.94;
   letter-spacing: -0.04em;
 }
 
-.room-summary {
-  margin: 0;
-  max-width: 44rem;
-  color: var(--ink-muted);
-  line-height: 1.62;
+.room-title {
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 0.94;
 }
 
-.room-header-meta {
+.state-title {
+  font-size: clamp(1.4rem, 2vw, 1.8rem);
+  line-height: 0.98;
+}
+
+.room-summary,
+.page-feedback {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.room-summary {
+  max-width: 46rem;
+  color: var(--ink-muted);
+}
+
+.page-feedback {
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-soft) 82%, transparent);
+  color: var(--ink);
+}
+
+.room-header-meta,
+.dialog-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
@@ -75,7 +92,7 @@
 
 .room-id-badge,
 .room-note-badge,
-.roster-status {
+.stream-badge {
   display: inline-flex;
   align-items: center;
   min-height: 2rem;
@@ -98,73 +115,25 @@
   color: var(--ink);
 }
 
-.presence-card,
-.pending-card {
-  padding: clamp(1rem, 2vw, 1.2rem);
-}
-
-.pending-card {
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  border-color: color-mix(in srgb, var(--line) 85%, transparent);
-}
-
-.presence-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.45rem, 2vw, 1.85rem);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
-}
-
-.presence-summary,
-.presence-empty,
-.roster-note {
-  margin: 0;
-  color: var(--ink-muted);
-  line-height: 1.55;
-}
-
-.roster-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 0.7rem;
-}
-
-.roster-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.85rem;
-  align-items: start;
-  padding: 0.85rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel-strong) 92%, transparent);
-}
-
-.roster-row[data-tone="pending"] {
-  background: color-mix(in srgb, var(--panel-muted) 84%, transparent);
-  border-style: dashed;
-}
-
-.roster-identity {
-  gap: 0.3rem;
-}
-
-.roster-name {
-  font-size: 0.96rem;
-}
-
-.roster-status {
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--paper-strong) 90%, transparent);
+.stream-badge {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 90%, transparent);
+  background: color-mix(in srgb, var(--paper-strong) 88%, transparent);
   color: var(--ink-soft);
 }
 
-.not-found-card {
-  min-height: 18rem;
+.stream-badge[data-connected="true"] {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--line));
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: color-mix(in srgb, var(--success) 68%, var(--ink));
+}
+
+.state-card {
+  min-height: 16rem;
   align-content: center;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
 }
 
 @media (max-width: 900px) {
@@ -175,10 +144,10 @@
 
 @media (max-width: 620px) {
   .room-title {
-    font-size: clamp(1.75rem, 10vw, 2.8rem);
+    font-size: clamp(1.8rem, 9vw, 2.8rem);
   }
 
-  .roster-row {
-    grid-template-columns: 1fr;
+  .dialog-actions {
+    justify-content: stretch;
   }
 }

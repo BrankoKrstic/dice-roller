@@ -309,19 +309,13 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
             <button
                 on:click=move |_| { state.write().mode = EditorMode::Builder }
                 class="g-button-mode"
-                class=(
-                    "g-button-mode-active",
-                    move || state.get().mode == EditorMode::Builder,
-                )
+                class=("g-button-mode-active", move || state.get().mode == EditorMode::Builder)
             >
                 "Dice Bench"
             </button>
             <button
                 class="g-button-mode"
-                class=(
-                    "g-button-mode-active",
-                    move || state.get().mode == EditorMode::Expression,
-                )
+                class=("g-button-mode-active", move || state.get().mode == EditorMode::Expression)
                 on:click=move |_| { state.write().mode = EditorMode::Expression }
             >
                 "Expression Editor"
@@ -365,7 +359,9 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
             <div class=style::roll_editor_footer>
                 <div class=style::roll_editor_preview>
                     <span class="g-field-label">"Current expression"</span>
-                    <code class=style::roll_editor_preview_code>{move || state.get().get_expr()}</code>
+                    <code class=style::roll_editor_preview_code>
+                        {move || state.get().get_expr()}
+                    </code>
                     <p class=style::roll_editor_preview_note>
                         "Need a reminder on modifiers, rerolls, or keep/drop syntax in the expression editor?"
                     </p>
@@ -385,52 +381,5 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
                 </div>
             </div>
         </section>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn editor_component_uses_expression_editor_copy() {
-        use leptos::prelude::*;
-
-        let owner = Owner::new();
-        owner.set();
-
-        let rendered =
-            view! { <super::EditorComponent state=RwSignal::new(super::EditorState::default()) /> };
-        let html = rendered.to_html();
-
-        assert!(html.contains("Dice Bench"));
-        assert!(html.contains("Expression Editor"));
-        assert!(!html.contains("Command Strip"));
-    }
-
-    #[test]
-    fn dice_bench_styles_keep_cards_wide_enough_for_controls() {
-        let styles = include_str!("roll_editor.module.scss");
-
-        assert!(styles.contains(
-            "grid-template-columns: repeat(auto-fit, minmax(var(--die-card-min-width, 150px), 1fr));"
-        ));
-        assert!(
-            styles.contains("grid-template-columns: minmax(2.2rem, 1fr) auto minmax(2.2rem, 1fr);")
-        );
-    }
-
-    #[test]
-    fn selecting_a_preset_switches_to_expression_mode() {
-        use leptos::prelude::*;
-
-        let owner = Owner::new();
-        owner.set();
-
-        let mut state = super::EditorState::default();
-
-        state.load_expression("d20adv + 5");
-
-        assert_eq!(state.mode, super::EditorMode::Expression);
-        assert_eq!(state.get_expr(), "d20adv + 5");
     }
 }

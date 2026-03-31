@@ -28,23 +28,58 @@ pub fn RollFeed(
     #[prop(into)] load_older_rolls: Callback<()>,
 ) -> impl IntoView {
     let unread_rolls = RwSignal::new(0);
-
     let roll_feed_ref = NodeRef::<html::Div>::new();
+    let last_roll_count = RwSignal::new(0usize);
+    let pending_restore_height = RwSignal::new(None::<i32>);
 
     let on_roll_feed_scroll = move |_| {
-        if feed.get_untracked().has_more && !loading_more.get_untracked() {
-            return;
-        }
-
         if let Some(container) = roll_feed_ref.get() {
-            if container.scroll_top() <= 80 {
+            if feed.get_untracked().has_more
+                && !loading_more.get_untracked()
+                && container.scroll_top() <= 80
+            {
+                pending_restore_height.set(Some(container.scroll_height()));
                 load_older_rolls.run(());
             }
+
             if is_scroll_near_bottom(&roll_feed_ref) {
                 unread_rolls.set(0);
             }
         }
     };
+
+    Effect::new(move |_| {
+        let roll_count = feed.get().rolls.len();
+        let is_loading_more = loading_more.get();
+
+        if let Some(container) = roll_feed_ref.get() {
+            let previous_roll_count = last_roll_count.get();
+            let previous_height = pending_restore_height.get();
+
+            if roll_count != previous_roll_count {
+                if let Some(previous_height) = previous_height {
+                    if !is_loading_more && roll_count > previous_roll_count {
+                        let height_delta =
+                            container.scroll_height().saturating_sub(previous_height);
+                        container
+                            .set_scroll_top(container.scroll_top().saturating_add(height_delta));
+                        pending_restore_height.set(None);
+                    }
+                } else if previous_roll_count == 0 || is_scroll_near_bottom(&roll_feed_ref) {
+                    scroll_to_bottom(&roll_feed_ref);
+                    unread_rolls.set(0);
+                } else if roll_count > previous_roll_count {
+                    unread_rolls
+                        .update(|count| *count += roll_count.saturating_sub(previous_roll_count));
+                }
+
+                last_roll_count.set(roll_count);
+            }
+        } else if roll_count != last_roll_count.get() {
+            last_roll_count.set(roll_count);
+        }
+    });
+
     view! {
         <section class=style::room_top_grid>
             <article class=style::rooms_card>

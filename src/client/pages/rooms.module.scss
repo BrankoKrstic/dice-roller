@@ -52,10 +52,17 @@
 .launch-card-summary,
 .launch-helper,
 .join-helper,
-.empty-state-copy {
+.empty-state-copy,
+.join-feedback {
   margin: 0;
-  color: var(--ink-muted);
   line-height: 1.58;
+}
+
+.launch-card-summary,
+.launch-helper,
+.join-helper,
+.empty-state-copy {
+  color: var(--ink-muted);
 }
 
 .launch-action-row {
@@ -88,6 +95,14 @@
 
 .join-helper {
   font-size: 0.92rem;
+}
+
+.join-feedback {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: color-mix(in srgb, var(--danger) 70%, var(--ink));
 }
 
 .joined-rooms-panel {

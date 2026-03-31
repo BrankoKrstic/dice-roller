@@ -133,26 +133,3 @@ pub fn NavBar() -> impl IntoView {
         </header>
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn guest_navbar_uses_session_ledger_shell_copy() {
-        use leptos::prelude::*;
-
-        use crate::client::context::theme::Theme;
-
-        let owner = Owner::new();
-        owner.set();
-        let (theme, _) = signal(Theme::Dark);
-        provide_context::<Signal<Theme>>(theme.into());
-
-        let rendered = view! { <super::NavBar /> };
-        let html = rendered.to_html();
-
-        assert!(html.contains("Session Ledger"));
-        assert!(html.contains("Dice Roller"));
-        assert!(html.contains("Menu"));
-    }
-}

@@ -110,6 +110,22 @@ impl Condition {
     }
 }
 
+impl std::fmt::Display for Condition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let op = match self.op {
+            ModifierOp::Greater => ">",
+            ModifierOp::Less => "<",
+            ModifierOp::GreaterEqual => ">=",
+            ModifierOp::LessEqual => "<=",
+            ModifierOp::Equal => "=",
+            ModifierOp::Lowest => "l",
+            ModifierOp::Highest => "h",
+        };
+
+        write!(f, "{op}{}", self.target)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dice {
     pub(crate) count: u32,
@@ -142,6 +158,83 @@ pub enum Ast {
         lhs: Box<Ast>,
         rhs: Box<Ast>,
     },
+}
+
+impl std::fmt::Display for Ast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Ast::Number(value) => write!(f, "{value}"),
+            Ast::Dice(dice) => {
+                write!(f, "{}{}", dice.count, display_dice_kind(dice.kind))?;
+                for modifier in &dice.modifiers {
+                    write!(f, "{}", display_dice_modifier(modifier))?;
+                }
+                Ok(())
+            }
+            Ast::Unary {
+                op: UnaryOp::Negate,
+                ast,
+            } => write!(f, "-{}", display_wrapped_ast(ast)),
+            Ast::Binary { op, lhs, rhs } => {
+                let op = match op {
+                    BinaryOp::Add => "+",
+                    BinaryOp::Subtract => "-",
+                    BinaryOp::Multiply => "*",
+                    BinaryOp::Divide => "/",
+                };
+
+                write!(
+                    f,
+                    "{} {op} {}",
+                    display_wrapped_ast(lhs),
+                    display_wrapped_ast(rhs)
+                )
+            }
+        }
+    }
+}
+
+fn display_wrapped_ast(ast: &Ast) -> String {
+    match ast {
+        Ast::Binary { .. } => format!("({ast})"),
+        _ => ast.to_string(),
+    }
+}
+
+fn display_dice_kind(kind: DiceKind) -> &'static str {
+    match kind {
+        DiceKind::D4 => "d4",
+        DiceKind::D6 => "d6",
+        DiceKind::D8 => "d8",
+        DiceKind::D10 => "d10",
+        DiceKind::D12 => "d12",
+        DiceKind::D20 => "d20",
+        DiceKind::DPercentile => "d%",
+        DiceKind::DFudge => "dF",
+    }
+}
+
+fn display_dice_modifier(modifier: &DiceModifier) -> String {
+    match modifier {
+        DiceModifier::Explode { condition, count } => match count {
+            Some(count) => format!("ex{condition}times{count}"),
+            None => format!("ex{condition}"),
+        },
+        DiceModifier::Keep { condition } => format!("k{condition}"),
+        DiceModifier::Sort(order) => match order {
+            SortOrder::Asc => "sasc".to_string(),
+            SortOrder::Dsc => "sdsc".to_string(),
+        },
+        DiceModifier::Reroll { times, condition } => format!("r{condition}times{times}"),
+        DiceModifier::Drop { condition } => format!("d{condition}"),
+        DiceModifier::Count { condition } => match condition {
+            Some(condition) => format!("c{condition}"),
+            None => "c".to_string(),
+        },
+        DiceModifier::Unique => "u".to_string(),
+        DiceModifier::Min(value) => format!("min{value}"),
+        DiceModifier::Max(value) => format!("max{value}"),
+    }
 }
 
 type ParseResult = Result<Ast, ParserError>;

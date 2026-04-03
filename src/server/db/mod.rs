@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, time::Duration};
 
 use libsql::{Builder, Connection, Database};
 use thiserror::Error;
@@ -44,7 +44,9 @@ impl Db {
         let db = if is_remote_database_url(&db_url) {
             let db_token = env::var("TURSO_AUTH_TOKEN")
                 .map_err(|_| DbError::MissingEnv("TURSO_AUTH_TOKEN"))?;
-            Builder::new_remote(db_url, db_token)
+            Builder::new_synced_database("local.db", db_url, db_token)
+                .sync_interval(Duration::from_secs(30))
+                .read_your_writes(true)
                 .build()
                 .await
                 .map_err(|error| DbError::Database(error.to_string()))?

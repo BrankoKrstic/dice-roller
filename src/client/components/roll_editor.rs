@@ -345,7 +345,7 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
                 <p class="g-section-label">"Editor"</p>
                 <h1 class=style::roll_editor_title>"Build a roll"</h1>
                 <p class=style::roll_editor_summary>
-                    "Use the bench to quick-draft a roll, or unlock advanced modifiers in the expression editor"
+                    "Use the bench to quick-draft a roll, or unlock advanced modifiers in the expression editor."
                 </p>
             </div>
 

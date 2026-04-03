@@ -62,27 +62,74 @@
   gap: 0.85rem;
   align-items: start;
   padding: 0.9rem;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--success) 20%, var(--line));
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 35%),
-    color-mix(in srgb, var(--panel) 88%, transparent);
+  background: color-mix(in srgb, var(--panel) 92%, var(--success) 8%);
 }
 
-.presence-row[data-live="true"] {
-  border-color: color-mix(in srgb, var(--success) 22%, var(--line));
+.presence-row[data-role="admin"] {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--panel-strong) 88%, var(--accent) 12%);
 }
 
 .presence-row[data-tone="pending"] {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 35%),
-    color-mix(in srgb, var(--panel-muted) 92%, transparent);
+  border-color: color-mix(in srgb, var(--accent-copper) 28%, var(--line));
+  background: color-mix(in srgb, var(--panel) 90%, var(--accent-copper) 10%);
+}
+
+.presence-row[data-live="false"] {
+  border-color: color-mix(in srgb, var(--ink-soft) 14%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 86%, var(--panel) 14%);
+}
+
+.presence-row[data-role="admin"][data-live="false"] {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 90%, var(--accent) 10%);
+}
+
+.presence-row[data-tone="pending"][data-live="false"] {
+  border-color: color-mix(in srgb, var(--accent-copper) 18%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 92%, var(--accent-copper) 8%);
 }
 
 .presence-row[data-tone="kicked"] {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 35%),
-    color-mix(in srgb, var(--paper-strong) 92%, transparent);
+  border-color: color-mix(in srgb, var(--ink-soft) 18%, var(--line));
+  background: color-mix(in srgb, var(--paper-strong) 82%, var(--panel-muted) 18%);
+}
+
+:global([data-theme="dark"]) .presence-row {
+  border-color: color-mix(in srgb, var(--success) 24%, var(--line));
+  background: color-mix(in srgb, var(--panel) 90%, var(--success) 10%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-role="admin"] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: color-mix(in srgb, var(--panel-strong) 86%, var(--accent) 14%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-tone="pending"] {
+  border-color: color-mix(in srgb, var(--accent-copper) 24%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 88%, var(--accent-copper) 12%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-live="false"] {
+  border-color: color-mix(in srgb, var(--ink-soft) 18%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 92%, var(--panel) 8%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-role="admin"][data-live="false"] {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 88%, var(--accent) 12%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-tone="pending"][data-live="false"] {
+  border-color: color-mix(in srgb, var(--accent-copper) 18%, var(--line));
+  background: color-mix(in srgb, var(--panel-muted) 94%, var(--accent-copper) 6%);
+}
+
+:global([data-theme="dark"]) .presence-row[data-tone="kicked"] {
+  border-color: color-mix(in srgb, var(--ink-soft) 14%, var(--line));
+  background: color-mix(in srgb, var(--paper-strong) 88%, var(--panel-muted) 12%);
 }
 
 .presence-name {

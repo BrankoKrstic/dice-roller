@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use crate::{
     client::{
         components::{roll_editor::RollEditor, roll_feed::RollFeed},
+        context::auth::use_auth_context,
         utils::roll_feed::{DiceRoll, DiceRollFeed},
     },
     dsl::parse_and_roll,
@@ -34,6 +35,7 @@ fn build_local_roll(expr: String, result: crate::dsl::interpreter::EvalResult) -
 
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
+    let auth = use_auth_context();
     let feed = RwSignal::new(DiceRollFeed::new());
     let roll_error = RwSignal::new(None::<String>);
 
@@ -73,10 +75,12 @@ pub(crate) fn HomePage() -> impl IntoView {
                             "Visit the "<a href="/reference">"reference page"</a>
                             " for help with the expressio nnotation."
                         </li>
-                        <li>
-                            <a href="/register">"Create an account"</a>
-                            " to save rolls as presets."
-                        </li>
+                        <Show when=move || auth.user.get().is_none()>
+                            <li>
+                                <a href="/register">"Create an account"</a>
+                                " to save rolls as presets."
+                            </li>
+                        </Show>
                     </ul>
                 </section>
 

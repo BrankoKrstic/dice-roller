@@ -292,9 +292,9 @@ pub fn StatsPage() -> impl IntoView {
                         <h2 class=style::stats_card_title>
                             {move || {
                                 if matches!(variant.get(), CalculatorVariant::Ac) {
-                                    "AC Hit Rate."
+                                    "AC Hit Rate"
                                 } else {
-                                    "Saving Throw Success Rate."
+                                    "Saving Throw Success Rate"
                                 }
                             }}
                         </h2>

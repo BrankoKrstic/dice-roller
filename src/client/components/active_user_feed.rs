@@ -60,6 +60,7 @@ pub fn ActiveUserFeed(
                                             <li
                                                 class=style::presence_row
                                                 data-live=if member.is_live { "true" } else { "false" }
+                                                data-role=if member.is_creator { "admin" } else { "member" }
                                                 data-tone=member.status.as_str()
                                             >
                                                 <div class=style::presence_identity>

@@ -26,6 +26,19 @@
   line-height: 1.55;
 }
 
+.session-list a {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.session-list a:hover,
+.session-list a:focus-visible {
+  color: var(--accent);
+}
+
 .session-list li::marker {
   color: var(--accent-copper);
 }

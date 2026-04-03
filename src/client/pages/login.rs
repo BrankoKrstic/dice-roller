@@ -46,6 +46,15 @@ pub(super) fn LoginPage() -> impl IntoView {
     let submitting = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
 
+    let redirect_home = navigate.clone();
+    Effect::new(move |_| {
+        if auth.loading.get() || auth.user.get().is_none() {
+            return;
+        }
+
+        redirect_home("/", Default::default());
+    });
+
     let on_submit = move |event: SubmitEvent| {
         event.prevent_default();
         if submitting.get_untracked() {

@@ -95,9 +95,7 @@ pub fn RollFeed(
                 <div class=style::rooms_card_header>
                     <p class="g-section-label">"Activity"</p>
                     <h2 class=style::rooms_card_title>"Room Activity"</h2>
-                    <p class=style::rooms_card_summary>
-                        "Recent throws, totals, and breakdowns stack here so the table can read the room at a glance."
-                    </p>
+                    <p class=style::rooms_card_summary>"Recent rolls show up here."</p>
                     <Show when=move || unread_rolls.get() != 0>
                         <button
                             class=format!("g-button-utility {}", style::roll_feed_jump)
@@ -130,11 +128,7 @@ pub fn RollFeed(
                     {move || {
                         let roll_count = feed.get().rolls.len();
                         if roll_count == 0 && !feed.get().has_more {
-                            view! {
-                                <p class="g-result-hint">
-                                    "No throws recorded yet. Your next roll becomes the first line in the ledger."
-                                </p>
-                            }
+                            view! { <p class="g-result-hint">"No rolls recorded yet."</p> }
                                 .into_any()
                         } else {
                             view! {

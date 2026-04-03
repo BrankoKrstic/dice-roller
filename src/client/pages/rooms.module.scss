@@ -1,7 +1,11 @@
 .launch-panel {
   gap: 1.15rem;
   background:
-    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 65%, transparent), transparent 42%),
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent-soft) 65%, transparent),
+      transparent 42%
+    ),
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 34%),
     var(--panel-strong);
 }
@@ -126,7 +130,11 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-soft) 68%, transparent), transparent 9rem),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent-soft) 68%, transparent),
+      transparent 9rem
+    ),
     color-mix(in srgb, var(--panel-strong) 92%, transparent);
   box-shadow: var(--shadow-soft);
 }
@@ -144,7 +152,7 @@
 }
 
 .room-title {
-  font-size: clamp(1.5rem, 2vw, 1.95rem);
+  font-size: clamp(1.45rem, 2vw, 1.8rem);
   line-height: 0.98;
 }
 

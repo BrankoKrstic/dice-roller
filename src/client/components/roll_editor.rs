@@ -342,19 +342,13 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
     view! {
         <section class=style::roll_editor>
             <div class=style::roll_editor_heading>
-                <p class="g-section-label">"Composer"</p>
-                <h1 class=style::roll_editor_title>"Compose the next throw."</h1>
+                <p class="g-section-label">"Editor"</p>
+                <h1 class=style::roll_editor_title>"Build a roll"</h1>
                 <p class=style::roll_editor_summary>
-                    "Use the bench for tactile drafting or jump to raw notation when the table already knows the move."
+                    "Use the bench to quick-draft a roll, or unlock advanced modifiers in the expression editor"
                 </p>
             </div>
 
-            <PresetEditor
-                expression=current_expression
-                on_select=Callback::new(move |expr: String| {
-                    state.update(|editor| editor.load_expression(&expr));
-                })
-            />
             <EditorComponent state=state />
             <div class=style::roll_editor_footer>
                 <div class=style::roll_editor_preview>
@@ -362,9 +356,6 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
                     <code class=style::roll_editor_preview_code>
                         {move || state.get().get_expr()}
                     </code>
-                    <p class=style::roll_editor_preview_note>
-                        "Need a reminder on modifiers, rerolls, or keep/drop syntax in the expression editor?"
-                    </p>
                 </div>
 
                 <div class=style::roll_editor_actions>
@@ -381,5 +372,11 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
                 </div>
             </div>
         </section>
+        <PresetEditor
+            expression=current_expression
+            on_select=Callback::new(move |expr: String| {
+                state.update(|editor| editor.load_expression(&expr));
+            })
+        />
     }
 }

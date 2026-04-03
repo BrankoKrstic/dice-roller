@@ -278,10 +278,10 @@ pub fn PresetEditor(
                     <section class=style::preset_section>
                         <div class=style::preset_header>
                             <div class=style::preset_heading>
-                                <p class="g-section-label">"Saved bench"</p>
-                                <h2 class=style::preset_title>"Your ready rolls"</h2>
+                                <p class="g-section-label">"Presets"</p>
+                                <h2 class=style::preset_title>"Your saved rolls"</h2>
                                 <p class=style::preset_summary>
-                                    "Pin your common moves here so the editor can jump straight to exact notation."
+                                    "Save your preset rolls here for easy access"
                                 </p>
                             </div>
 
@@ -289,22 +289,7 @@ pub fn PresetEditor(
                                 <span class=style::preset_count>
                                     {move || format!("{} / {}", preset_count.get(), MAX_PRESETS)}
                                 </span>
-                                <button
-                                    class="g-button-action"
-                                    type="button"
-                                    prop:disabled=move || save_cta_disabled.get()
-                                    on:click=move |_| open_save_dialog.run(())
-                                >
-                                    {move || {
-                                        if saving.get() {
-                                            "Saving..."
-                                        } else if preset_count.get() >= MAX_PRESETS {
-                                            "Preset limit reached"
-                                        } else {
-                                            "Save Preset"
-                                        }
-                                    }}
-                                </button>
+
                             </div>
                         </div>
 
@@ -349,38 +334,43 @@ pub fn PresetEditor(
 
                                             view! {
                                                 <article class=style::preset_card>
-                                                    <button
-                                                        class=style::preset_launch
-                                                        type="button"
-                                                        on:click=move |_| on_select.run(apply_expr.clone())
-                                                    >
+                                                    <p class=style::preset_launch>
                                                         <span class=style::preset_card_title>
                                                             {preset.name.clone()}
                                                         </span>
                                                         <code class=style::preset_card_code>
                                                             {preset.expr.clone()}
                                                         </code>
-                                                    </button>
-                                                    <button
-                                                        class=format!("g-button-utility {}", style::preset_archive)
-                                                        type="button"
-                                                        prop:disabled=move || {
-                                                            archiving_id.get() == Some(delete_id)
-                                                        }
-                                                        on:click=move |_| {
-                                                            archive_error.set(None);
-                                                            dialog.set(Some(PendingDialog::Delete(delete_id)));
-                                                        }
-                                                    >
-                                                        {move || {
-                                                            if archiving_id.get() == Some(delete_id) {
-                                                                "Archiving..."
-                                                            } else {
-                                                                "Archive"
+                                                    </p>
+                                                    <div class=style::preset_editor_button_wrap>
+                                                        <button
+                                                            class=format!("g-button-utility {}", style::preset_archive)
+                                                            type="button"
+                                                            on:click=move |_| on_select.run(apply_expr.clone())
+                                                        >
+                                                            "Load"
+                                                        </button>
+
+                                                        <button
+                                                            class=format!("g-button-utility {}", style::preset_archive)
+                                                            type="button"
+                                                            prop:disabled=move || {
+                                                                archiving_id.get() == Some(delete_id)
                                                             }
-                                                        }}
-                                                    </button>
-                                                    <span class=style::preset_sr_note>{delete_name}</span>
+                                                            on:click=move |_| {
+                                                                archive_error.set(None);
+                                                                dialog.set(Some(PendingDialog::Delete(delete_id)));
+                                                            }
+                                                        >
+                                                            {move || {
+                                                                if archiving_id.get() == Some(delete_id) {
+                                                                    "Archiving..."
+                                                                } else {
+                                                                    "Archive"
+                                                                }
+                                                            }}
+                                                        </button>
+                                                    </div>
                                                 </article>
                                             }
                                         })
@@ -389,7 +379,31 @@ pub fn PresetEditor(
                                 }
                             }}
                         </div>
+                        <div class=style::preset_editor_footer>
+                            <div class=style::preset_editor_preview>
+                                <span class="g-field-label">"Current expression"</span>
+                                <code class=style::preset_editor_preview_code>
+                                    {move || expression.get()}
+                                </code>
+                            </div>
+                            <button
+                                class="g-button-action"
+                                type="button"
+                                prop:disabled=move || save_cta_disabled.get()
+                                on:click=move |_| open_save_dialog.run(())
+                            >
+                                {move || {
+                                    if saving.get() {
+                                        "Saving..."
+                                    } else if preset_count.get() >= MAX_PRESETS {
+                                        "Preset limit reached"
+                                    } else {
+                                        "Save as Preset"
+                                    }
+                                }}
+                            </button>
 
+                        </div>
                         <Dialog
                             open=save_dialog_open
                             title="Save preset".to_string()

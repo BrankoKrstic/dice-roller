@@ -24,8 +24,8 @@ const BASICS: &[ReferenceEntry] = &[
     },
     ReferenceEntry {
         syntax: "-2 + d20",
-        meaning: "Unary minus is supported, so penalties can be written inline instead of rephrased.",
-        notes: &["The parser binds unary minus tighter than multiplication."],
+        meaning: "Unary minus is supported, so penalties can be written inline.",
+        notes: &["Unary minus gets bound tighter than multiplication or division."],
     },
 ];
 
@@ -48,7 +48,7 @@ const DICE_TYPES: &[ReferenceEntry] = &[
     ReferenceEntry {
         syntax: "d10",
         meaning: "Single ten-sided die.",
-        notes: &[],
+        notes: &["`d10` rolls from `1` to `10` instead of `0` to `9`"],
     },
     ReferenceEntry {
         syntax: "d12",
@@ -63,12 +63,12 @@ const DICE_TYPES: &[ReferenceEntry] = &[
     ReferenceEntry {
         syntax: "d%",
         meaning: "Percentile die.",
-        notes: &["`d%` is the percentile form supported by the parser."],
+        notes: &["`d%` rolls from `1` to `100`."],
     },
     ReferenceEntry {
         syntax: "4dF",
         meaning: "Fudge/Fate dice.",
-        notes: &["Fudge dice roll from `-1` to `1` instead of `1..N`."],
+        notes: &["Fudge dice roll from `-1` to `1`."],
     },
 ];
 
@@ -102,9 +102,9 @@ const MODIFIERS: &[ReferenceEntry] = &[
         notes: &["Add `times2` to cap rerolls: `2d6r<=2times2`."],
     },
     ReferenceEntry {
-        syntax: "1d6ex=6times2",
-        meaning: "Explode matching dice and cap the extra rolls.",
-        notes: &["Without `timesN`, explosions continue until the condition stops matching."],
+        syntax: "1d6ex",
+        meaning: "Explode maximum dice roll",
+        notes: &["Roll another dice whenever a dice falls on its highest value"],
     },
     ReferenceEntry {
         syntax: "4d6c>=5",
@@ -140,9 +140,16 @@ const RECIPES: &[ReferenceEntry] = &[
         notes: &["Each term is rolled independently and then added together."],
     },
     ReferenceEntry {
+        syntax: "1d8ex>=4times2",
+        meaning: "Use parameters like <=5`, `=10`, `times3` to chance default behavior of modifiers. ",
+        notes: &[
+            "Most modifiers can be set to trigger on certan dice rolls or be capped to trigger a max number of times.",
+        ],
+    },
+    ReferenceEntry {
         syntax: "4d6r<=3times2kh2d>=5c>=6smin2max5",
         meaning: "Stack rerolls, keep/drop logic, counting, sorting, and clamps in one expression.",
-        notes: &["This matches the parser’s modifier-composition test coverage."],
+        notes: &[],
     },
 ];
 
@@ -150,7 +157,7 @@ const GUARDRAILS: &[ReferenceEntry] = &[
     ReferenceEntry {
         syntax: "d20adv",
         meaning: "Advantage/disadvantage are special d20 shortcuts, not generic modifiers.",
-        notes: &["`2d20adv` and `d6adv` are rejected by the parser."],
+        notes: &["`2d20adv` and `d6adv` are rejected bt the parser."],
     },
     ReferenceEntry {
         syntax: "6d6u",
@@ -160,7 +167,7 @@ const GUARDRAILS: &[ReferenceEntry] = &[
         ],
     },
     ReferenceEntry {
-        syntax: "1d6ex=6times2",
+        syntax: "1d6ex>=1times2",
         meaning: "Use `timesN` when a reroll or explosion condition could loop too long.",
         notes: &["The parser rejects impossible infinite conditions unless you cap them."],
     },
@@ -170,7 +177,7 @@ pub const REFERENCE_SECTIONS: &[ReferenceSection] = &[
     ReferenceSection {
         label: "Read It",
         title: "How to read an expression",
-        summary: "The expression editor reads left to right like arithmetic. Write dice groups, combine them with math operators, and add parentheses when you want to force evaluation order.",
+        summary: "The expression editor reads left to right like arithmetic. Declare dice groups, combine them with math operators, and add parentheses when you want to force evaluation order.",
         entries: BASICS,
     },
     ReferenceSection {
@@ -180,15 +187,15 @@ pub const REFERENCE_SECTIONS: &[ReferenceSection] = &[
         entries: DICE_TYPES,
     },
     ReferenceSection {
-        label: "Shortcuts",
-        title: "Single-d20 shortcuts",
-        summary: "Advantage and disadvantage are special shortcuts, not general-purpose suffixes for every die.",
+        label: "Shorthand",
+        title: "Single-d20 shorthand",
+        summary: "Advantage and disadvantage are special d20 syntax, not general-purpose suffixes for every die.",
         entries: SHORTCUTS,
     },
     ReferenceSection {
         label: "Modifiers",
-        title: "Modifier catalog",
-        summary: "Most advanced syntax lives on a dice term. Modifiers can be stacked in one expression when the parser allows that combination.",
+        title: "Roll modifiers",
+        summary: "Most advanced modifiers get combined with dice rolls. Modifiers can be stacked in one expression.",
         entries: MODIFIERS,
     },
     ReferenceSection {

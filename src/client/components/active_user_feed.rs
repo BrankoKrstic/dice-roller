@@ -21,11 +21,11 @@ pub fn ActiveUserFeed(
         <section class=format!("g-panel g-panel-strong {}", style::presence_card)>
             <div class=style::presence_header>
                 <p class="g-section-label">"Live in room"</p>
-                <h2 class=style::presence_title>"Room roster"</h2>
+                <h2 class=style::presence_title>"Room members"</h2>
                 <p class=style::presence_summary>
                     {move || {
                         if connected.get() {
-                            "Roster and live status are updating over the room stream."
+                            "Active room members."
                         } else {
                             "Roster is reconnecting. Existing room state stays visible while the stream retries."
                         }
@@ -42,25 +42,21 @@ pub fn ActiveUserFeed(
             {move || {
                 let members = roster_members.get();
                 if members.is_empty() {
-                    view! {
-                        <p class=style::presence_empty>
-                            "No visible room members yet."
-                        </p>
-                    }
+                    view! { <p class=style::presence_empty>"No visible room members yet."</p> }
                         .into_any()
                 } else {
                     view! {
                         <div class=style::presence_scroll>
                             <ul class=style::presence_list>
                                 <For
-                                each=move || roster_members.get()
-                                key=|member| member.user_id.into_inner()
-                                children=move |member| {
-                                    let user_id = member.user_id.into_inner();
-                                    let allow_user_id = member.user_id;
-                                    let kick_user_id = member.user_id;
+                                    each=move || roster_members.get()
+                                    key=|member| member.user_id.into_inner()
+                                    children=move |member| {
+                                        let user_id = member.user_id.into_inner();
+                                        let allow_user_id = member.user_id;
+                                        let kick_user_id = member.user_id;
 
-                                    view! {
+                                        view! {
                                             <li
                                                 class=style::presence_row
                                                 data-live=if member.is_live { "true" } else { "false" }
@@ -90,15 +86,12 @@ pub fn ActiveUserFeed(
                                                     </div>
                                                     <Show when=move || can_manage_members && !member.is_creator>
                                                         <div class=style::presence_actions>
-                                                            <Show
-                                                                when=move || {
-                                                                    matches!(
-                                                                        member.status,
-                                                                        RoomMembershipStatus::Pending
-                                                                            | RoomMembershipStatus::Kicked
-                                                                    )
-                                                                }
-                                                            >
+                                                            <Show when=move || {
+                                                                matches!(
+                                                                    member.status,
+                                                                    RoomMembershipStatus::Pending | RoomMembershipStatus::Kicked
+                                                                )
+                                                            }>
                                                                 <button
                                                                     class="g-button-utility"
                                                                     type="button"
@@ -119,15 +112,12 @@ pub fn ActiveUserFeed(
                                                                     }}
                                                                 </button>
                                                             </Show>
-                                                            <Show
-                                                                when=move || {
-                                                                    matches!(
-                                                                        member.status,
-                                                                        RoomMembershipStatus::Pending
-                                                                            | RoomMembershipStatus::Joined
-                                                                    )
-                                                                }
-                                                            >
+                                                            <Show when=move || {
+                                                                matches!(
+                                                                    member.status,
+                                                                    RoomMembershipStatus::Pending | RoomMembershipStatus::Joined
+                                                                )
+                                                            }>
                                                                 <button
                                                                     class="g-button-ghost"
                                                                     type="button"

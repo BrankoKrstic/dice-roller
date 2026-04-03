@@ -18,6 +18,7 @@ pub struct ChanceResult {
     pub trials: u32,
     pub success_count: u64,
     pub dmg: i128,
+    pub hit_count: u64,
 }
 
 #[cfg(feature = "hydrate")]
@@ -58,6 +59,7 @@ pub fn run_trials(
         trials: 0,
         success_count: 0,
         dmg: 0,
+        hit_count: 0,
     };
 
     let to_hit_ast = Parser::new(&to_hit_expression).parse()?;
@@ -65,13 +67,13 @@ pub fn run_trials(
     let mut interpreter = Interpreter::new(CryptoDiceRng::new());
     while result.trials < trials {
         let roll = interpreter.eval_ast(&to_hit_ast)?.total();
-        let is_hit = match is_ac_variant {
-            true => roll >= target,
-            false => roll < target,
-        };
+        let is_hit = roll >= target;
 
         if is_hit {
             result.success_count += 1;
+        }
+        if is_hit == is_ac_variant {
+            result.hit_count += 1;
             result.dmg += interpreter.eval_ast(&dmg_ast)?.total() as i128;
         }
 

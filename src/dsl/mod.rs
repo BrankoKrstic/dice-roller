@@ -33,15 +33,15 @@ impl From<InterpreterError> for RollError {
 
 #[derive(Debug, Error)]
 pub enum RollError {
-    #[error("expression is empty")]
+    #[error("Expression is empty")]
     EmptyExpression,
-    #[error("expression is too long: {actual} (max {max})")]
+    #[error("Expression is too long: {actual} (max {max})")]
     ExpressionTooLong { max: usize, actual: usize },
-    #[error("lex error {error}")]
+    #[error("Lex error {error}")]
     Lex { error: LexerError },
-    #[error("parse error {error}")]
+    #[error("Parse error {error}")]
     Parse { error: ParserError },
-    #[error("evaluation error: {error}")]
+    #[error("Runtime error: {error}")]
     Eval { error: InterpreterError },
 }
 

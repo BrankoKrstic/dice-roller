@@ -54,10 +54,10 @@ fn average_damage_per_attempt(result: &ChanceResult) -> f32 {
 }
 
 fn average_damage_on_success(result: &ChanceResult) -> f32 {
-    if result.success_count == 0 {
+    if result.hit_count == 0 {
         0.0
     } else {
-        result.dmg as f32 / result.success_count as f32
+        result.dmg as f32 / result.hit_count as f32
     }
 }
 
@@ -127,7 +127,8 @@ fn StatsResultPanel(
                             </p>
                             <pre class=style::stats_card_breakdown>
                                 {format!(
-                                    "Average damage per attempt: {:.3}\nAverage damage on success: {:.3}",
+                                    "Success chance: {:.3}\nAverage damage per attempt: {:.3}\nAverage damage on success: {:.3}",
+                                    success_percent(&result) * 100.0,
                                     average_damage_per_attempt(&result),
                                     average_damage_on_success(&result),
                                 )}
@@ -164,9 +165,7 @@ fn StatsResultPanel(
                                 aria-label="Simulation in progress"
                             >
                                 <div class=style::stats_loader_spinner></div>
-                                <p class=style::stats_loader_text>
-                                    "Running one million trials..."
-                                </p>
+                                <p class=style::stats_loader_text>"Running simulation"</p>
                             </div>
                         </Show>
                     }
@@ -237,14 +236,6 @@ pub fn StatsPage() -> impl IntoView {
     view! {
         <div class=format!("g-page g-page-shell g-page-shell-split {}", style::stats_shell)>
             <section class=style::stats_column>
-                <section class="g-panel g-panel-strong">
-                    <p class="g-section-label">"Analysis mode"</p>
-                    <h1 class="g-section-title">"Probability Ledger"</h1>
-                    <p class="g-section-summary">
-                        "Draft the two commands, set the target, and read the result as a clean numeric report."
-                    </p>
-                </section>
-
                 <section class=format!("g-panel g-panel-strong {}", style::stats_workbench)>
                     <div class=style::stats_toolbar>
                         <div
@@ -301,18 +292,18 @@ pub fn StatsPage() -> impl IntoView {
                         <h2 class=style::stats_card_title>
                             {move || {
                                 if matches!(variant.get(), CalculatorVariant::Ac) {
-                                    "Measure hit chance against armor."
+                                    "AC Hit Rate."
                                 } else {
-                                    "Measure failure rate against a saving throw."
+                                    "Saving Throw Success Rate."
                                 }
                             }}
                         </h2>
                         <p class=style::stats_card_subtitle>
                             {move || {
                                 if matches!(variant.get(), CalculatorVariant::Ac) {
-                                    "Draft the attack roll and paired damage roll, then estimate how often the total lands against the target AC."
+                                    "Estimate how often an attack roll hits against the target AC and the average damage output."
                                 } else {
-                                    "Draft the save expression and paired damage roll, then estimate how often the save misses the target DC."
+                                    "Estimate how often the save hits target DC."
                                 }
                             }}
                         </p>
@@ -356,6 +347,14 @@ pub fn StatsPage() -> impl IntoView {
             </section>
 
             <aside class=style::stats_rail>
+                <section class="g-panel g-panel-strong">
+                    <p class="g-section-label">"Chance Ledger"</p>
+                    <h1 class="g-section-title">"Probability Mode"</h1>
+                    <p class="g-section-summary">
+                        "Draft the two rolls, set the target AC or DC, and run the simulation to see your chance to hit and damage output."
+                    </p>
+                </section>
+
                 <StatsResultPanel running=running result=result error=error />
             </aside>
         </div>

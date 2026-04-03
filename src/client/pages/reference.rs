@@ -32,13 +32,10 @@ pub fn ReferencePage() -> impl IntoView {
     view! {
         <section class=format!("g-page g-page-shell {}", style::reference_layout)>
             <div class=format!("g-panel g-panel-strong {}", style::reference_hero)>
-                <p class="g-section-label">"Expression guide"</p>
-                <h1 class="g-section-title">"Expression Editor Guide"</h1>
+                <p class="g-section-label">"Expressions"</p>
+                <h1 class="g-section-title">"Expression Editor Reference"</h1>
                 <p class=style::reference_hero_summary>
-                    "Use Dice Bench when you want tactile drafting. Use Expression Editor when the table already knows the command and you want the full notation surface."
-                </p>
-                <p class=style::reference_hero_note>
-                    "Everything documented here is sourced from the parser that ships with the app today."
+                    "Use Dice Bench when you want a quick draft. Use Expression Editor to take advantage of the full power of the dice roll notation."
                 </p>
             </div>
 

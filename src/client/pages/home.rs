@@ -54,14 +54,6 @@ pub(crate) fn HomePage() -> impl IntoView {
     view! {
         <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
             <section class=style::home_column>
-                <section class=format!("g-panel g-panel-strong {}", style::intro_card)>
-                    <p class="g-section-label">"Session ledger"</p>
-                    <h1 class="g-section-title">"Room-first rolling, live by default."</h1>
-                    <p class="g-section-summary">
-                        "Draft the command, send it to the shared history, and keep the table reading one running ledger instead of separate utility panes."
-                    </p>
-                </section>
-
                 <RollEditor on_roll=process_roll />
                 <Show when=move || roll_error.get().is_some()>
                     <p class="g-result-hint">{move || roll_error.get().unwrap_or_default()}</p>
@@ -69,17 +61,21 @@ pub(crate) fn HomePage() -> impl IntoView {
             </section>
 
             <aside class=style::home_rail>
-                <section class=format!("g-panel g-panel-strong {}", style::session_card)>
-                    <p class="g-section-label">"Current Table"</p>
-                    <h2 class="g-section-title">"Solo table live, shared rooms next."</h2>
+                <section class=format!("g-panel g-panel-strong {}", style::intro_card)>
+                    <p class="g-section-label">"Local ledger"</p>
+                    <h1 class="g-section-title">"Your private bench"</h1>
                     <p class="g-section-summary">
-                        "You are drafting against the local ledger today. The shell already speaks in room language so multiplayer flows can slot in without another visual reset."
+                        "Draft a roll, run it in your local ledger, and s ave a preset for later."
                     </p>
                     <ul class=style::session_list>
-                        <li>"Rolls append immediately to the activity rail."</li>
-                        <li>"Notation help lives on the dedicated reference route."</li>
+                        <li>"Rolls immediately append to the activity feed."</li>
                         <li>
-                            "Chance analysis stays adjacent instead of competing with the main composer."
+                            "Visit the "<a href="/reference">"reference page"</a>
+                            " for help with the expressio nnotation."
+                        </li>
+                        <li>
+                            <a href="/register">"Create an account"</a>
+                            " to save rolls as presets."
                         </li>
                     </ul>
                 </section>

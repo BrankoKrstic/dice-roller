@@ -64,7 +64,7 @@ pub fn latest_roll_activity_line(latest_roll: &Option<RoomRollSummary>) -> Strin
         .as_ref()
         .map(|roll| {
             format!(
-                "Latest motion: {} logged {} at {} total.",
+                "Latest motion: {} rolled {} for a {} total.",
                 roll.username.as_str(),
                 roll.roll_expression,
                 roll.final_result

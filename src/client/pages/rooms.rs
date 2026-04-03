@@ -29,12 +29,10 @@ fn rooms_page_content(
         <section class="g-page g-page-shell">
             <section class=format!("g-panel g-panel-strong {}", style::launch_panel)>
                 <div class=style::launch_header>
-                    <p class="g-section-label">"Ledger stage"</p>
-                    <h1 class="g-section-title">
-                        "Open a table or step back into an active room."
-                    </h1>
+                    <p class="g-section-label">"Rooms"</p>
+                    <h1 class="g-section-title">"Choose a room to roll int."</h1>
                     <p class="g-section-summary">
-                        "Create a fresh room, jump into an existing table by ID, or reopen one of your joined rooms from the live board below."
+                        "Create a new room, or join an existing one to roll dice in a group."
                     </p>
                 </div>
 
@@ -42,21 +40,16 @@ fn rooms_page_content(
                     <article class=style::launch_card>
                         <p class="g-section-label">"Start a room"</p>
                         <h2 class=style::launch_card_title>"Create a room"</h2>
-                        <p class=style::launch_card_summary>
-                            "Spin up a new shared ledger, land in the room immediately, and handle moderation from the room rail."
-                        </p>
+                        <p class=style::launch_card_summary>"Spin up a new shared roll feed."</p>
                         <div class=style::launch_action_row>
                             <a id="rooms-create-room" class="g-button-action" href="/rooms/create">
                                 "Create a room"
                             </a>
-                            <p class=style::launch_helper>
-                                "The create flow only asks for the room name. Member requests and roster changes live in the room itself."
-                            </p>
                         </div>
                     </article>
 
                     <article class=style::launch_card>
-                        <p class="g-section-label">"Rejoin a table"</p>
+                        <p class="g-section-label">"Join a table"</p>
                         <h2 class=style::launch_card_title>"Join by room ID"</h2>
                         <label class="g-field-label" for="rooms-join-room-id">
                             "Room ID"
@@ -85,9 +78,7 @@ fn rooms_page_content(
                                 </button>
                             </div>
                         </div>
-                        <p class=style::join_helper>
-                            "Submitting a request redirects you to the room page immediately. Pending users wait there until admitted."
-                        </p>
+                        <p class=style::join_helper>"Pending users wait there until admitted."</p>
                         {move || {
                             join_error
                                 .get()
@@ -101,11 +92,9 @@ fn rooms_page_content(
 
             <section class=format!("g-panel g-panel-strong {}", style::joined_rooms_panel)>
                 <div class=style::joined_rooms_header>
-                    <p class="g-section-label">"Active tables"</p>
+                    <p class="g-section-label">"Your rooms"</p>
                     <h2 class="g-section-title">"Joined rooms"</h2>
-                    <p class="g-section-summary">
-                        "Each card reflects the live room list for your account, including room presence and the latest ledger motion."
-                    </p>
+                    <p class="g-section-summary">"Rooms you've joined."</p>
                 </div>
 
                 {move || match rooms_state.get() {
@@ -148,9 +137,6 @@ fn rooms_page_content(
                                     {rooms
                                         .into_iter()
                                         .map(|room| {
-                                            let live_count = active_member_count_label(
-                                                room.active_member_count,
-                                            );
                                             let activity_line = latest_roll_activity_line(
                                                 &room.latest_roll,
                                             );
@@ -162,7 +148,7 @@ fn rooms_page_content(
                                                         <div class=style::room_identity>
                                                             <p class="g-section-label">
                                                                 {if room.can_manage_members {
-                                                                    "Admin table".to_string()
+                                                                    "Admin".to_string()
                                                                 } else {
                                                                     "Joined table".to_string()
                                                                 }}
@@ -175,10 +161,6 @@ fn rooms_page_content(
                                                     </div>
 
                                                     <dl class=style::room_meta_list>
-                                                        <div class=style::room_meta_row>
-                                                            <dt>"Presence"</dt>
-                                                            <dd>{live_count}</dd>
-                                                        </div>
                                                         <div class=style::room_meta_row>
                                                             <dt>"Who is here"</dt>
                                                             <dd>
@@ -194,7 +176,7 @@ fn rooms_page_content(
                                                             </dd>
                                                         </div>
                                                         <div class=style::room_meta_row>
-                                                            <dt>"Latest motion"</dt>
+                                                            <dt>"Latest activity"</dt>
                                                             <dd>{activity_line}</dd>
                                                         </div>
                                                     </dl>

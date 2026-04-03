@@ -1,7 +1,11 @@
 .room-shell {
   gap: 1rem;
   background:
-    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 40%),
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent-soft) 60%, transparent),
+      transparent 40%
+    ),
     linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 30%),
     var(--panel-strong);
 }
@@ -40,7 +44,12 @@
   position: absolute;
   inset: auto 0 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-strong),
+    transparent
+  );
 }
 
 .room-header-top {
@@ -55,7 +64,7 @@
 }
 
 .room-title {
-  font-size: clamp(2rem, 4vw, 3.4rem);
+  font-size: clamp(1.5rem, 2vw, 1.8rem);
   line-height: 0.94;
 }
 

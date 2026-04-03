@@ -160,46 +160,6 @@ fn room_page_content(
                                 view! {
                                     <div class=format!("g-page-shell-split {}", style::room_layout)>
                                         <section class=style::room_main>
-                                            <section class=format!(
-                                                "g-panel g-panel-strong {}",
-                                                style::room_header,
-                                            )>
-                                                <div class=style::room_header_top>
-                                                    <p class="g-section-label">"Table ledger"</p>
-                                                    <h1 class=style::room_title>{room.name.clone()}</h1>
-                                                    <p class=style::room_summary>
-                                                        "Keep live presence, shared room activity, and the next throw in the same place so the table stays synchronized."
-                                                    </p>
-                                                </div>
-
-                                                <div class=style::room_header_meta>
-                                                    <span class=style::room_id_badge>
-                                                        {format!("#{}", room.id.into_inner())}
-                                                    </span>
-                                                    <span class=style::room_note_badge>
-                                                        {if viewer.can_manage_members {
-                                                            "Admin".to_string()
-                                                        } else {
-                                                            "Joined".to_string()
-                                                        }}
-                                                    </span>
-                                                    <span
-                                                        class=style::stream_badge
-                                                        data-connected=move || {
-                                                            if stream_connected.get() { "true" } else { "false" }
-                                                        }
-                                                    >
-                                                        {move || {
-                                                            if stream_connected.get() {
-                                                                "Live stream open".to_string()
-                                                            } else {
-                                                                "Live stream reconnecting".to_string()
-                                                            }
-                                                        }}
-                                                    </span>
-                                                </div>
-                                            </section>
-
                                             {move || {
                                                 if !live_ready.get() {
                                                     view! {
@@ -242,6 +202,52 @@ fn room_page_content(
                                         </section>
 
                                         <aside class=style::room_rail>
+                                            <section class=format!(
+                                                "g-panel g-panel-strong {}",
+                                                style::room_header,
+                                            )>
+                                                <div class=style::room_header_top>
+                                                    <p class="g-section-label">"Table ledger"</p>
+                                                    <h2 class=style::room_title>{room.name.clone()}</h2>
+                                                    <p class=style::room_summary>
+                                                        "Shared room with a live roll feed."
+                                                    </p>
+                                                </div>
+
+                                                <div class=style::room_header_meta>
+                                                    <span class=style::room_id_badge>
+                                                        {format!("#{}", room.id.into_inner())}
+                                                    </span>
+                                                    <span class=style::room_note_badge>
+                                                        {if viewer.can_manage_members {
+                                                            "Admin".to_string()
+                                                        } else {
+                                                            "Joined".to_string()
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        class=style::stream_badge
+                                                        data-connected=move || {
+                                                            if stream_connected.get() { "true" } else { "false" }
+                                                        }
+                                                    >
+                                                        {move || {
+                                                            if stream_connected.get() {
+                                                                "Live stream open".to_string()
+                                                            } else {
+                                                                "Live stream reconnecting".to_string()
+                                                            }
+                                                        }}
+                                                    </span>
+                                                </div>
+                                            </section>
+
+                                            <RollFeed
+                                                feed=roll_feed
+                                                loading_more=loading_more
+                                                load_older_rolls=load_older_rolls
+                                            />
+
                                             <ActiveUserFeed
                                                 roster_members=roster_members
                                                 connected=stream_connected
@@ -252,11 +258,6 @@ fn room_page_content(
                                                 on_request_kick=on_request_kick
                                             />
 
-                                            <RollFeed
-                                                feed=roll_feed
-                                                loading_more=loading_more
-                                                load_older_rolls=load_older_rolls
-                                            />
                                         </aside>
                                     </div>
                                 }

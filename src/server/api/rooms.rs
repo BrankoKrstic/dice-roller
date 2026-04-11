@@ -19,6 +19,7 @@ use futures::{
 };
 use serde::Deserialize;
 use tokio::sync::{broadcast, watch};
+use tracing::info;
 
 use crate::{
     server::{
@@ -306,6 +307,11 @@ async fn create_room_handler(
     Json(payload): Json<CreateRoomRequest>,
 ) -> RoomApiResult<Json<Room>> {
     let room = rooms.create_room(user.id, payload).await?;
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room.id.into_inner(),
+        "created room"
+    );
     Ok(Json(room))
 }
 
@@ -320,6 +326,11 @@ async fn list_rooms_handler(
         summary.active_member_count = room_live.active_members(summary.room.id).len();
     }
 
+    info!(
+        user_id = user.id.into_inner(),
+        room_count = rooms.len(),
+        "listed rooms"
+    );
     Ok(Json(rooms))
 }
 
@@ -330,6 +341,12 @@ async fn room_access_handler(
     Path(room_id): Path<RoomId>,
 ) -> RoomApiResult<Json<RoomViewerState>> {
     let access = rooms.get_room_viewer_state(user.id, room_id).await?;
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        viewer_status = ?access.viewer_status,
+        "loaded room access"
+    );
     Ok(Json(access))
 }
 
@@ -342,6 +359,12 @@ async fn request_to_join_handler(
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.request_to_join(user.id, room_id).await?;
     room_live.notify_roster_changed(room_id);
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        status = ?membership.status,
+        "requested room join"
+    );
 
     Ok(Json(membership))
 }
@@ -358,6 +381,13 @@ async fn invite_room_member_handler(
         .add_member_by_email(user.id, room_id, payload.email)
         .await?;
     room_live.notify_roster_changed(room_id);
+    info!(
+        actor_user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        target_user_id = membership.user_id.into_inner(),
+        status = ?membership.status,
+        "invited room member"
+    );
 
     Ok(Json(membership))
 }
@@ -371,6 +401,13 @@ async fn allow_member_handler(
 ) -> RoomApiResult<Json<RoomMembership>> {
     let membership = rooms.allow_member(user.id, room_id, target_user_id).await?;
     room_live.notify_roster_changed(room_id);
+    info!(
+        actor_user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        target_user_id = target_user_id.into_inner(),
+        status = ?membership.status,
+        "allowed room member"
+    );
 
     Ok(Json(membership))
 }
@@ -389,6 +426,13 @@ async fn kick_member_handler(
         "room membership revoked".to_string(),
     );
     room_live.notify_roster_changed(room_id);
+    info!(
+        actor_user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        target_user_id = target_user_id.into_inner(),
+        status = ?membership.status,
+        "kicked room member"
+    );
 
     Ok(Json(membership))
 }
@@ -403,6 +447,13 @@ async fn add_room_roll_handler(
 ) -> RoomApiResult<Json<RoomRoll>> {
     let roll = rooms.add_roll_to_room(user.id, room_id, payload).await?;
     room_live.notify_roll_created(room_id, room_roll_summary_from_roll(&user, &roll));
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        roll_id = roll.id.into_inner(),
+        final_result = roll.final_result,
+        "created room roll"
+    );
 
     Ok(Json(roll))
 }
@@ -423,6 +474,13 @@ async fn list_room_rolls_handler(
         )
         .await?;
 
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        roll_count = rolls.rolls.len(),
+        has_more = rolls.has_more,
+        "listed room rolls"
+    );
     Ok(Json(rolls))
 }
 
@@ -449,6 +507,11 @@ async fn room_events_handler(
         Ok(snapshot) => snapshot,
         Err(error) => return Err(error.into()),
     };
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        "opened room event stream"
+    );
 
     let initial_event = RoomStreamEvent::Snapshot { snapshot };
     let initial = stream::once(async move { Ok::<Event, Infallible>(sse_event(&initial_event)) });

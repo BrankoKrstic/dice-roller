@@ -5,7 +5,7 @@ use thiserror::Error;
 use crate::{
     dsl::interpreter::{CryptoDiceRng, EvalResult, Interpreter},
     dsl::parser::{Ast, Parser},
-    server::db::{Db, DbError},
+    server::db::{Db, DbError, DbExecutor},
     shared::data::{
         room::{
             ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomId,
@@ -143,7 +143,8 @@ impl RoomService {
     pub async fn run_migrations(&self) -> Result<(), DbError> {
         let conn = self.db.connection()?;
 
-        conn.execute(
+        conn.execute_named(
+            "rooms.migrate.create_rooms_table",
             "CREATE TABLE IF NOT EXISTS rooms (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     creator_id INTEGER NOT NULL,
@@ -160,7 +161,8 @@ impl RoomService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "rooms.migrate.create_members_table",
             "CREATE TABLE IF NOT EXISTS members (
                     room_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
@@ -182,7 +184,8 @@ impl RoomService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "rooms.migrate.create_rolls_table",
             "CREATE TABLE IF NOT EXISTS rolls (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -201,7 +204,8 @@ impl RoomService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "rooms.migrate.create_room_rolls_table",
             "CREATE TABLE IF NOT EXISTS room_rolls (
                     room_id INTEGER NOT NULL,
                     roll_id INTEGER NOT NULL,
@@ -220,15 +224,33 @@ impl RoomService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        for statement in [
-            "CREATE INDEX IF NOT EXISTS idx_rooms_creator_id ON rooms (creator_id)",
-            "CREATE INDEX IF NOT EXISTS idx_members_room_id ON members (room_id)",
-            "CREATE INDEX IF NOT EXISTS idx_members_user_id ON members (user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_members_status ON members (status)",
-            "CREATE INDEX IF NOT EXISTS idx_rolls_user_id ON rolls (user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_room_rolls_roll_id ON room_rolls (roll_id)",
+        for (statement_name, statement) in [
+            (
+                "rooms.migrate.create_rooms_creator_index",
+                "CREATE INDEX IF NOT EXISTS idx_rooms_creator_id ON rooms (creator_id)",
+            ),
+            (
+                "rooms.migrate.create_members_room_index",
+                "CREATE INDEX IF NOT EXISTS idx_members_room_id ON members (room_id)",
+            ),
+            (
+                "rooms.migrate.create_members_user_index",
+                "CREATE INDEX IF NOT EXISTS idx_members_user_id ON members (user_id)",
+            ),
+            (
+                "rooms.migrate.create_members_status_index",
+                "CREATE INDEX IF NOT EXISTS idx_members_status ON members (status)",
+            ),
+            (
+                "rooms.migrate.create_rolls_user_index",
+                "CREATE INDEX IF NOT EXISTS idx_rolls_user_id ON rolls (user_id)",
+            ),
+            (
+                "rooms.migrate.create_room_rolls_roll_index",
+                "CREATE INDEX IF NOT EXISTS idx_room_rolls_roll_id ON room_rolls (roll_id)",
+            ),
         ] {
-            conn.execute(statement, ())
+            conn.execute_named(statement_name, statement, ())
                 .await
                 .map_err(|error| DbError::Database(error.to_string()))?;
         }
@@ -408,7 +430,8 @@ impl RoomService {
         let tx = conn.transaction().await?;
         let roll = {
             let mut rows = tx
-                .query(
+                .query_named(
+                    "rooms.add_roll.insert_roll",
                     "INSERT INTO rolls (
                         user_id,
                         roll_expression,
@@ -446,7 +469,8 @@ impl RoomService {
             }
         };
 
-        tx.execute(
+        tx.execute_named(
+            "rooms.add_roll.link_room_roll",
             "INSERT INTO room_rolls (room_id, roll_id) VALUES (?1, ?2)",
             (room_id.into_inner(), roll.id.into_inner()),
         )
@@ -568,14 +592,14 @@ impl RoomService {
     }
 }
 
-async fn require_room(conn: &libsql::Connection, room_id: RoomId) -> Result<Room, RoomError> {
+async fn require_room(conn: &impl DbExecutor, room_id: RoomId) -> Result<Room, RoomError> {
     fetch_room(conn, room_id)
         .await?
         .ok_or(RoomError::RoomNotFound)
 }
 
 async fn require_room_creator(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     actor_id: UserId,
     room_id: RoomId,
 ) -> Result<Room, RoomError> {
@@ -588,7 +612,7 @@ async fn require_room_creator(
 }
 
 async fn authorize_room_read(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     viewer_id: UserId,
     room_id: RoomId,
 ) -> Result<RoomReadAccess, RoomError> {
@@ -620,9 +644,10 @@ async fn authorize_room_read(
     }
 }
 
-async fn fetch_room(conn: &libsql::Connection, room_id: RoomId) -> Result<Option<Room>, RoomError> {
+async fn fetch_room(conn: &impl DbExecutor, room_id: RoomId) -> Result<Option<Room>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_room",
             "SELECT id, creator_id, name, created_at, updated_at
             FROM rooms
             WHERE id = ?1",
@@ -644,12 +669,13 @@ async fn fetch_room(conn: &libsql::Connection, room_id: RoomId) -> Result<Option
 }
 
 async fn fetch_membership(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     user_id: UserId,
 ) -> Result<Option<RoomMembership>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_membership",
             "SELECT room_id, user_id, status, created_at, updated_at
             FROM members
             WHERE room_id = ?1 AND user_id = ?2",
@@ -678,11 +704,15 @@ async fn fetch_membership(
 }
 
 async fn find_user_id_by_email(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     email: &Email,
 ) -> Result<Option<UserId>, RoomError> {
     let mut rows = conn
-        .query("SELECT id FROM users WHERE email = ?1", [email.as_str()])
+        .query_named(
+            "rooms.find_user_id_by_email",
+            "SELECT id FROM users WHERE email = ?1",
+            [email.as_str()],
+        )
         .await?;
 
     let Some(row) = rows.next().await? else {
@@ -693,12 +723,13 @@ async fn find_user_id_by_email(
 }
 
 async fn fetch_member_summaries_by_status(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     status: RoomMembershipStatus,
 ) -> Result<Vec<RoomMemberSummary>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_member_summaries_by_status",
             "SELECT m.user_id, u.username, m.status
             FROM members m
             JOIN users u ON u.id = m.user_id
@@ -728,12 +759,13 @@ async fn fetch_member_summaries_by_status(
 }
 
 async fn fetch_manageable_member_summaries(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     creator_id: UserId,
 ) -> Result<Vec<RoomMemberSummary>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_manageable_member_summaries",
             "SELECT m.user_id, u.username, m.status
             FROM members m
             JOIN users u ON u.id = m.user_id
@@ -763,11 +795,12 @@ async fn fetch_manageable_member_summaries(
 }
 
 async fn fetch_joined_room_summaries(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     viewer_id: UserId,
 ) -> Result<Vec<JoinedRoomSummary>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_joined_room_summaries",
             "SELECT DISTINCT r.id, r.creator_id, r.name, r.created_at, r.updated_at
             FROM rooms r
             LEFT JOIN members m
@@ -802,7 +835,7 @@ async fn fetch_joined_room_summaries(
 }
 
 async fn fetch_visible_room_roster(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     access: &RoomReadAccess,
     active_members: &[ActiveRoomMember],
 ) -> Result<Vec<RoomRosterMember>, RoomError> {
@@ -839,7 +872,7 @@ async fn fetch_visible_room_roster(
 }
 
 async fn fetch_room_roll_page(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     before_id: Option<RoomRollId>,
     limit: usize,
@@ -849,7 +882,8 @@ async fn fetch_room_roll_page(
     })?;
     let mut rows = match before_id {
         Some(before_id) => {
-            conn.query(
+            conn.query_named(
+                "rooms.fetch_room_roll_page.before",
                 "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
                 FROM room_rolls rr
                 JOIN rolls r ON r.id = rr.roll_id
@@ -862,7 +896,8 @@ async fn fetch_room_roll_page(
             .await?
         }
         None => {
-            conn.query(
+            conn.query_named(
+                "rooms.fetch_room_roll_page.latest",
                 "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
                 FROM room_rolls rr
                 JOIN rolls r ON r.id = rr.roll_id
@@ -899,9 +934,10 @@ async fn fetch_room_roll_page(
     })
 }
 
-async fn fetch_username(conn: &libsql::Connection, user_id: UserId) -> Result<Username, RoomError> {
+async fn fetch_username(conn: &impl DbExecutor, user_id: UserId) -> Result<Username, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_username",
             "SELECT username FROM users WHERE id = ?1",
             [user_id.into_inner()],
         )
@@ -915,11 +951,12 @@ async fn fetch_username(conn: &libsql::Connection, user_id: UserId) -> Result<Us
 }
 
 async fn fetch_latest_room_roll_summary(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
 ) -> Result<Option<RoomRollSummary>, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.fetch_latest_room_roll_summary",
             "SELECT r.id, r.user_id, u.username, r.roll_expression, r.roll_breakdown, r.final_result, r.created_at, r.updated_at
             FROM room_rolls rr
             JOIN rolls r ON r.id = rr.roll_id
@@ -958,12 +995,13 @@ fn parse_room_roll_summary_row(row: &libsql::Row) -> Result<RoomRollSummary, Roo
 }
 
 async fn insert_room(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     creator_id: UserId,
     name: &str,
 ) -> Result<Room, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.insert_room",
             "INSERT INTO rooms (creator_id, name, created_at, updated_at)
             VALUES (?1, ?2, unixepoch('now'), unixepoch('now'))
             RETURNING id, creator_id, name, created_at, updated_at",
@@ -988,13 +1026,14 @@ async fn insert_room(
 }
 
 async fn insert_membership(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     user_id: UserId,
     status: RoomMembershipStatus,
 ) -> Result<RoomMembership, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.insert_membership",
             "INSERT INTO members (room_id, user_id, status, created_at, updated_at)
             VALUES (?1, ?2, ?3, unixepoch('now'), unixepoch('now'))
             RETURNING room_id, user_id, status, created_at, updated_at",
@@ -1019,13 +1058,14 @@ async fn insert_membership(
 }
 
 async fn update_membership_status(
-    conn: &libsql::Connection,
+    conn: &impl DbExecutor,
     room_id: RoomId,
     user_id: UserId,
     status: RoomMembershipStatus,
 ) -> Result<RoomMembership, RoomError> {
     let mut rows = conn
-        .query(
+        .query_named(
+            "rooms.update_membership_status",
             "UPDATE members
             SET status = ?3, updated_at = unixepoch('now')
             WHERE room_id = ?1 AND user_id = ?2

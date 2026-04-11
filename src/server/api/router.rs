@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
+use tracing::{Span, warn};
 
 use crate::{
     server::{
@@ -30,13 +31,18 @@ async fn require_auth(
 ) -> Response {
     let user = match auth.check_token(jar) {
         Ok(Some(user)) => user,
-        Ok(None) => return unauthorized_response("Authentication required"),
+        Ok(None) => {
+            warn!(outcome = "missing_auth_cookie", "authentication required");
+            return unauthorized_response("Authentication required");
+        }
         Err(error) => {
+            warn!(error = %error, outcome = "invalid_auth_token", "authentication failed");
             let response: (StatusCode, Json<AuthErrorResponse>) = error.into();
             return response.into_response();
         }
     };
 
+    Span::current().record("user_id", tracing::field::display(user.id.into_inner()));
     request.extensions_mut().insert::<AuthUser>(user);
     next.run(request).await
 }

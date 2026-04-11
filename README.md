@@ -144,11 +144,17 @@ Optional runtime env vars:
 ```bash
 export TURSO_AUTH_TOKEN="required for remote libsql/turso URLs"
 export JWT_EXP_SECONDS="604800"
+export APP_LOG_FORMAT="pretty"
+export DB_SLOW_QUERY_MS="100"
+# e.g. export RUST_LOG="info,dice_roller=debug,tower_http=info"
 ```
 
 Notes:
 - `TURSO_DATABASE_URL` can point at a local SQLite/libSQL file or a remote `libsql://`/`https://` URL.
 - `TURSO_AUTH_TOKEN` is only required for remote database URLs.
 - Set `AUTH_COOKIE_SECURE="true"` when serving over HTTPS.
+- `APP_LOG_FORMAT` supports `pretty` and `json`.
+- `DB_SLOW_QUERY_MS` controls when query timing also emits a slow-query warning.
+- `RUST_LOG` controls log filtering for the server and middleware stack.
 
 Then run the server binary.

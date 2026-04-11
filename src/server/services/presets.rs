@@ -78,7 +78,8 @@ impl PresetService {
     pub async fn run_migrations(&self) -> Result<(), DbError> {
         let conn = self.db.connection()?;
 
-        conn.execute(
+        conn.execute_named(
+            "presets.migrate.create_presets_table",
             "CREATE TABLE IF NOT EXISTS presets (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -97,7 +98,8 @@ impl PresetService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "presets.migrate.create_presets_user_index",
             "CREATE INDEX IF NOT EXISTS idx_presets_user_id ON presets (user_id)",
             (),
         )
@@ -110,7 +112,8 @@ impl PresetService {
     pub async fn list_presets(&self, user_id: UserId) -> Result<Vec<Preset>, PresetError> {
         let conn = self.db.connection()?;
         let mut rows = conn
-            .query(
+            .query_named(
+                "presets.list_active",
                 "SELECT id, name, expr
                 FROM presets
                 WHERE user_id = ?1 AND archived = 0
@@ -138,7 +141,8 @@ impl PresetService {
     ) -> Result<Preset, PresetError> {
         let conn = self.db.connection()?;
         let mut rows = conn
-            .query(
+            .query_named(
+                "presets.create",
                 "INSERT INTO presets (user_id, name, expr, created_at, updated_at, archived)
                 VALUES (?1, ?2, ?3, unixepoch('now'), unixepoch('now'), 0)
                 RETURNING id, name, expr",
@@ -167,7 +171,8 @@ impl PresetService {
     ) -> Result<(), PresetError> {
         let conn = self.db.connection()?;
         let rows_affected = conn
-            .execute(
+            .execute_named(
+                "presets.archive",
                 "UPDATE presets
                 SET archived = 1, updated_at = unixepoch('now')
                 WHERE id = ?1 AND user_id = ?2 AND archived = 0",

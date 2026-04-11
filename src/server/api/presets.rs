@@ -4,6 +4,7 @@ use axum::{
     http::StatusCode,
     routing::{delete, get},
 };
+use tracing::info;
 
 use crate::{
     server::{
@@ -24,6 +25,11 @@ async fn list_presets_handler(
     Extension(user): Extension<AuthUser>,
 ) -> PresetApiResult<Json<Vec<Preset>>> {
     let presets = presets.list_presets(user.id).await?;
+    info!(
+        user_id = user.id.into_inner(),
+        preset_count = presets.len(),
+        "listed presets"
+    );
     Ok(Json(presets))
 }
 
@@ -34,6 +40,11 @@ async fn create_preset_handler(
     Json(payload): Json<PresetRequest>,
 ) -> PresetApiResult<Json<Preset>> {
     let preset = presets.create_preset(user.id, payload).await?;
+    info!(
+        user_id = user.id.into_inner(),
+        preset_id = preset.id.0,
+        "created preset"
+    );
     Ok(Json(preset))
 }
 
@@ -44,6 +55,7 @@ async fn delete_preset_handler(
     Path(preset_id): Path<i64>,
 ) -> PresetApiResult<StatusCode> {
     presets.delete_preset(user.id, PresetId(preset_id)).await?;
+    info!(user_id = user.id.into_inner(), preset_id, "deleted preset");
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::extract::CookieJar;
+use tracing::info;
 
 use crate::{
     server::{
@@ -23,6 +24,7 @@ async fn user_info_handler(
     jar: CookieJar,
 ) -> AuthApiResult<Json<Option<AuthUser>>> {
     let user = auth.check_token(jar)?;
+    info!(authenticated = user.is_some(), "auth session inspected");
     Ok(Json(user))
 }
 
@@ -35,6 +37,7 @@ async fn register_handler(
     let user = auth.register(payload).await?;
     let token = auth.issue_token(user.clone()).await?;
     let jar = jar.add(auth.auth_cookie(token));
+    info!(user_id = user.id.into_inner(), "user registered");
 
     Ok((jar, Json(user)))
 }
@@ -49,6 +52,7 @@ async fn login_handler(
     let token = auth.issue_token(user.clone()).await?;
 
     let jar = jar.add(auth.auth_cookie(token));
+    info!(user_id = user.id.into_inner(), "user logged in");
     Ok((jar, Json(user)))
 }
 
@@ -58,6 +62,7 @@ async fn logout_handler(
     jar: CookieJar,
 ) -> AuthApiResult<CookieJar> {
     let jar = auth.clear_auth_cookie(jar);
+    info!("user logged out");
     Ok(jar)
 }
 

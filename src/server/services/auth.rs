@@ -132,7 +132,8 @@ impl AuthService {
 
     pub async fn run_migrations(&self) -> Result<(), DbError> {
         let conn = self.db.connection()?;
-        conn.execute(
+        conn.execute_named(
+            "auth.migrate.create_users_table",
             "CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT NOT NULL UNIQUE,
@@ -145,14 +146,16 @@ impl AuthService {
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "auth.migrate.create_users_username_index",
             "CREATE INDEX IF NOT EXISTS idx_users_username ON users (username)",
             (),
         )
         .await
         .map_err(|error| DbError::Database(error.to_string()))?;
 
-        conn.execute(
+        conn.execute_named(
+            "auth.migrate.create_users_email_index",
             "CREATE INDEX IF NOT EXISTS idx_users_email ON users (
 			email)",
             (),
@@ -166,7 +169,8 @@ impl AuthService {
     pub async fn register(&self, payload: User) -> Result<AuthUser, AuthError> {
         let conn = self.db.connection()?;
 
-        let result = conn.execute(
+        let result = conn.execute_named(
+            "auth.register.insert_user",
             "INSERT INTO users (username, email, password, created_at) VALUES (?1, ?2, ?3, unixepoch('now'))",
             (payload.username.as_str(), payload.email.as_str(), payload.password.as_str())
         ).await;
@@ -188,7 +192,8 @@ impl AuthService {
     async fn find_user_by_email(&self, email: &Email) -> Result<Option<ExistingUser>, AuthError> {
         let conn = self.db.connection()?;
         let mut rows = conn
-            .query(
+            .query_named(
+                "auth.find_user_by_email",
                 "SELECT id, username, email, password FROM users where email = ?1",
                 [email.as_str()],
             )

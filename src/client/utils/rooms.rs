@@ -10,15 +10,48 @@ use crate::{
     },
     shared::{
         data::room::{
-            ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomMembership, RoomRoll,
-            RoomRollId, RoomRollPage, RoomRollRequest, RoomRollSummary, RoomViewerState,
+            ActiveRoomMember, AddRoomMemberRequest, CreateRoomRequest, JoinedRoomSummary, Room,
+            RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest,
+            RoomRollSummary, RoomViewerState,
         },
         utils::time::format_timestamp,
     },
 };
 
+pub const MAX_ROOM_NAME_LENGTH: usize = 20;
+pub const MAX_USERNAME_LENGTH: usize = 20;
+pub const MAX_ACTIVE_CREATED_ROOMS: usize = 5;
+
 pub fn room_route(room_id: i64) -> String {
     format!("/room/{room_id}")
+}
+
+pub fn validate_room_name_input(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err("Enter a room name.".to_string());
+    }
+    if trimmed.len() > MAX_ROOM_NAME_LENGTH {
+        return Err(format!(
+            "Room names can be at most {MAX_ROOM_NAME_LENGTH} characters."
+        ));
+    }
+
+    Ok(trimmed.to_string())
+}
+
+pub fn validate_username_input(input: &str) -> Result<String, String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return Err("Enter a username.".to_string());
+    }
+    if trimmed.len() > MAX_USERNAME_LENGTH {
+        return Err(format!(
+            "User names can be at most {MAX_USERNAME_LENGTH} characters."
+        ));
+    }
+
+    Ok(trimmed.to_string())
 }
 
 pub fn parse_room_id_input(input: &str) -> Result<i64, String> {
@@ -205,6 +238,24 @@ pub async fn allow_member_request(room_id: i64, user_id: i64) -> Result<RoomMemb
     response.json().await.map_err(|error| error.to_string())
 }
 
+pub async fn add_room_member_request(room_id: i64, username: &str) -> Result<RoomMembership, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/rooms/{room_id}/members", base_url()))
+        .json(&AddRoomMemberRequest {
+            username: crate::shared::data::user::Username::new(username.to_string()),
+        })
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(parse_error_response(response, "Failed to add room member").await);
+    }
+
+    response.json().await.map_err(|error| error.to_string())
+}
+
 pub async fn kick_member_request(room_id: i64, user_id: i64) -> Result<RoomMembership, String> {
     let client = reqwest::Client::new();
     let response = client
@@ -218,6 +269,36 @@ pub async fn kick_member_request(room_id: i64, user_id: i64) -> Result<RoomMembe
 
     if !response.status().is_success() {
         return Err(parse_error_response(response, "Failed to kick room member").await);
+    }
+
+    response.json().await.map_err(|error| error.to_string())
+}
+
+pub async fn leave_room_request(room_id: i64) -> Result<RoomMembership, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/rooms/{room_id}/leave", base_url()))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(parse_error_response(response, "Failed to leave room").await);
+    }
+
+    response.json().await.map_err(|error| error.to_string())
+}
+
+pub async fn archive_room_request(room_id: i64) -> Result<Room, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post(format!("{}/api/rooms/{room_id}/archive", base_url()))
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(parse_error_response(response, "Failed to archive room").await);
     }
 
     response.json().await.map_err(|error| error.to_string())

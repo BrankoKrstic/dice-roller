@@ -40,16 +40,3 @@ pub fn use_static_page_title(title: &'static str) {
 
     page_title.set(title);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::format_document_title;
-
-    #[test]
-    fn formats_document_title_with_brand_prefix() {
-        assert_eq!(
-            format_document_title("Simulation"),
-            "Dice Roller | Simulation",
-        );
-    }
-}

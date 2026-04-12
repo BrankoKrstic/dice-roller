@@ -67,9 +67,6 @@ pub fn ActiveUserFeed(
                                                     <strong class=style::presence_name>
                                                         {member.username.as_str().to_string()}
                                                     </strong>
-                                                    <p class=style::presence_note>
-                                                        {member_status_note(&member)}
-                                                    </p>
                                                 </div>
                                                 <div class=style::presence_meta>
                                                     <div class=style::presence_badges>
@@ -77,7 +74,7 @@ pub fn ActiveUserFeed(
                                                             <span class=style::presence_badge>"GM"</span>
                                                         </Show>
                                                         <span class=style::presence_badge>
-                                                            {if member.is_live { "Live" } else { "Offline" }}
+                                                            {if member.is_live { "Online" } else { "Offline" }}
                                                         </span>
                                                         <Show when=move || !member.is_creator>
                                                             <span class=style::presence_badge>
@@ -154,31 +151,7 @@ fn membership_badge_label(status: RoomMembershipStatus) -> &'static str {
     match status {
         RoomMembershipStatus::Pending => "Pending",
         RoomMembershipStatus::Joined => "Joined",
+        RoomMembershipStatus::Left => "Left",
         RoomMembershipStatus::Kicked => "Kicked",
-    }
-}
-
-fn member_status_note(member: &RoomRosterMember) -> String {
-    if member.is_creator {
-        if member.is_live {
-            "Managing the table and connected right now.".to_string()
-        } else {
-            "Managing the table and currently away from the live stream.".to_string()
-        }
-    } else {
-        match (member.status, member.is_live) {
-            (RoomMembershipStatus::Pending, _) => {
-                "Waiting for approval to join the shared ledger.".to_string()
-            }
-            (RoomMembershipStatus::Joined, true) => {
-                "Joined and connected to the shared ledger right now.".to_string()
-            }
-            (RoomMembershipStatus::Joined, false) => {
-                "Joined member who is currently offline.".to_string()
-            }
-            (RoomMembershipStatus::Kicked, _) => {
-                "Removed from the room and ready to be reinstated.".to_string()
-            }
-        }
     }
 }

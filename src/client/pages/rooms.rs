@@ -4,9 +4,11 @@ use web_sys::SubmitEvent;
 
 use crate::{
     client::{
+        components::dialog::Dialog,
         context::page_title::use_static_page_title,
         utils::rooms::{
-            join_room_request, latest_roll_activity_line, list_joined_rooms_request,
+            MAX_ACTIVE_CREATED_ROOMS, archive_room_request, join_room_request,
+            latest_roll_activity_line, leave_room_request, list_joined_rooms_request,
             parse_room_id_input, room_route,
         },
     },
@@ -22,11 +24,28 @@ enum JoinedRoomsState {
     Error(String),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum RoomsActionDialog {
+    Leave(JoinedRoomSummary),
+    Archive(JoinedRoomSummary),
+}
+
+fn active_created_room_count(rooms: &[JoinedRoomSummary]) -> usize {
+    rooms.iter().filter(|room| room.can_manage_members).count()
+}
+
 fn rooms_page_content(
     rooms_state: Signal<JoinedRoomsState>,
     join_input: RwSignal<String>,
     joining: Signal<bool>,
     join_error: RwSignal<Option<String>>,
+    action_error: Signal<Option<String>>,
+    action_busy_room_id: Signal<Option<i64>>,
+    action_dialog: Signal<Option<RoomsActionDialog>>,
+    on_request_leave: Callback<JoinedRoomSummary>,
+    on_request_archive: Callback<JoinedRoomSummary>,
+    on_cancel_action: Callback<()>,
+    on_confirm_action: Callback<()>,
 ) -> impl IntoView {
     view! {
         <section class="g-page g-page-shell">
@@ -45,10 +64,50 @@ fn rooms_page_content(
                         <h2 class=style::launch_card_title>"Create a room"</h2>
                         <p class=style::launch_card_summary>"Spin up a new shared roll feed."</p>
                         <div class=style::launch_action_row>
-                            <a id="rooms-create-room" class="g-button-action" href="/rooms/create">
-                                "Create a room"
-                            </a>
+                            {move || match rooms_state.get() {
+                                JoinedRoomsState::Loaded(
+                                    rooms,
+                                ) if active_created_room_count(&rooms)
+                                    >= MAX_ACTIVE_CREATED_ROOMS => {
+                                    view! {
+                                        <button
+                                            id="rooms-create-room"
+                                            class="g-button-action"
+                                            type="button"
+                                            disabled=true
+                                        >
+                                            "Create a room"
+                                        </button>
+                                    }
+                                        .into_any()
+                                }
+                                _ => {
+                                    view! {
+                                        <a
+                                            id="rooms-create-room"
+                                            class="g-button-action"
+                                            href="/rooms/create"
+                                        >
+                                            "Create a room"
+                                        </a>
+                                    }
+                                        .into_any()
+                                }
+                            }}
                         </div>
+                        <p class=style::launch_helper>
+                            {move || match rooms_state.get() {
+                                JoinedRoomsState::Loaded(
+                                    rooms,
+                                ) if active_created_room_count(&rooms)
+                                    >= MAX_ACTIVE_CREATED_ROOMS => {
+                                    format!(
+                                        "You can create up to {MAX_ACTIVE_CREATED_ROOMS} active rooms. Archive one first to make space.",
+                                    )
+                                }
+                                _ => "You can keep up to five active rooms at a time.".to_string(),
+                            }}
+                        </p>
                     </article>
 
                     <article class=style::launch_card>
@@ -99,6 +158,12 @@ fn rooms_page_content(
                     <h2 class="g-section-title">"Joined rooms"</h2>
                     <p class="g-section-summary">"Rooms you've joined."</p>
                 </div>
+
+                {move || {
+                    action_error
+                        .get()
+                        .map(|message| view! { <p class=style::join_feedback>{message}</p> })
+                }}
 
                 {move || match rooms_state.get() {
                     JoinedRoomsState::Loading => {
@@ -188,6 +253,43 @@ fn rooms_page_content(
                                                         <a class="g-button-action" href=room_target>
                                                             "Enter room"
                                                         </a>
+                                                        {if room.can_manage_members {
+                                                            view! {
+                                                                <button
+                                                                    class="g-button-ghost"
+                                                                    type="button"
+                                                                    prop:disabled=move || {
+                                                                        action_busy_room_id.get() == Some(room.room.id.into_inner())
+                                                                    }
+                                                                    on:click={
+                                                                        let on_request_archive = on_request_archive.clone();
+                                                                        let room = room.clone();
+                                                                        move |_| on_request_archive.run(room.clone())
+                                                                    }
+                                                                >
+                                                                    "Delete room"
+                                                                </button>
+                                                            }
+                                                                .into_any()
+                                                        } else {
+                                                            view! {
+                                                                <button
+                                                                    class="g-button-ghost"
+                                                                    type="button"
+                                                                    prop:disabled=move || {
+                                                                        action_busy_room_id.get() == Some(room.room.id.into_inner())
+                                                                    }
+                                                                    on:click={
+                                                                        let on_request_leave = on_request_leave.clone();
+                                                                        let room = room.clone();
+                                                                        move |_| on_request_leave.run(room.clone())
+                                                                    }
+                                                                >
+                                                                    "Leave room"
+                                                                </button>
+                                                            }
+                                                                .into_any()
+                                                        }}
                                                     </div>
                                                 </article>
                                             }
@@ -200,6 +302,59 @@ fn rooms_page_content(
                     }
                 }}
             </section>
+
+            <Dialog
+                open=move || action_dialog.get().is_some()
+                label="Room actions"
+                title="Confirm room action".to_string()
+                on_close=on_cancel_action
+            >
+                <p class=style::join_helper>
+                    {move || {
+                        action_dialog
+                            .get()
+                            .map(|dialog| match dialog {
+                                RoomsActionDialog::Leave(room) => {
+                                    format!(
+                                        "Leave {} and remove it from your active rooms?",
+                                        room.room.name,
+                                    )
+                                }
+                                RoomsActionDialog::Archive(room) => {
+                                    format!(
+                                        "Archive {} and make it unavailable to everyone?",
+                                        room.room.name,
+                                    )
+                                }
+                            })
+                            .unwrap_or_default()
+                    }}
+                </p>
+                <div class=style::room_card_footer>
+                    <button
+                        class="g-button-ghost"
+                        type="button"
+                        on:click=move |_| on_cancel_action.run(())
+                    >
+                        "Cancel"
+                    </button>
+                    <button
+                        class="g-button-action"
+                        type="button"
+                        on:click=move |_| on_confirm_action.run(())
+                    >
+                        {move || {
+                            action_dialog
+                                .get()
+                                .map(|dialog| match dialog {
+                                    RoomsActionDialog::Leave(_) => "Confirm leave",
+                                    RoomsActionDialog::Archive(_) => "Delete room",
+                                })
+                                .unwrap_or("")
+                        }}
+                    </button>
+                </div>
+            </Dialog>
         </section>
     }
 }
@@ -213,12 +368,11 @@ pub fn RoomsPage() -> impl IntoView {
     let join_error = RwSignal::new(None::<String>);
     let joining = RwSignal::new(false);
     let rooms_state = RwSignal::new(JoinedRoomsState::Loading);
+    let action_error = RwSignal::new(None::<String>);
+    let action_busy_room_id = RwSignal::new(None::<i64>);
+    let action_dialog = RwSignal::new(None::<RoomsActionDialog>);
 
-    Effect::new(move |_| {
-        if !cfg!(feature = "hydrate") {
-            return;
-        }
-
+    let refresh_rooms = Callback::new(move |_| {
         rooms_state.set(JoinedRoomsState::Loading);
         spawn_local(async move {
             match list_joined_rooms_request().await {
@@ -226,6 +380,14 @@ pub fn RoomsPage() -> impl IntoView {
                 Err(message) => rooms_state.set(JoinedRoomsState::Error(message)),
             }
         });
+    });
+
+    Effect::new(move |_| {
+        if !cfg!(feature = "hydrate") {
+            return;
+        }
+
+        refresh_rooms.run(());
     });
 
     let on_submit = move |event: SubmitEvent| {
@@ -262,9 +424,67 @@ pub fn RoomsPage() -> impl IntoView {
         });
     };
 
+    let on_request_leave = Callback::new(move |room: JoinedRoomSummary| {
+        action_error.set(None);
+        action_dialog.set(Some(RoomsActionDialog::Leave(room)));
+    });
+
+    let on_request_archive = Callback::new(move |room: JoinedRoomSummary| {
+        action_error.set(None);
+        action_dialog.set(Some(RoomsActionDialog::Archive(room)));
+    });
+
+    let on_cancel_action = Callback::new(move |_| {
+        action_dialog.set(None);
+    });
+
+    let on_confirm_action = Callback::new(move |_| {
+        let Some(dialog) = action_dialog.get_untracked() else {
+            return;
+        };
+
+        let room_id = match &dialog {
+            RoomsActionDialog::Leave(room) | RoomsActionDialog::Archive(room) => {
+                room.room.id.into_inner()
+            }
+        };
+
+        action_error.set(None);
+        action_busy_room_id.set(Some(room_id));
+
+        spawn_local(async move {
+            let result = match dialog {
+                RoomsActionDialog::Leave(_) => leave_room_request(room_id).await.map(|_| ()),
+                RoomsActionDialog::Archive(_) => archive_room_request(room_id).await.map(|_| ()),
+            };
+
+            match result {
+                Ok(()) => {
+                    action_dialog.set(None);
+                    refresh_rooms.run(());
+                }
+                Err(message) => action_error.set(Some(message)),
+            }
+
+            action_busy_room_id.set(None);
+        });
+    });
+
     view! {
         <form on:submit=on_submit>
-            {rooms_page_content(rooms_state.into(), join_input, joining.into(), join_error)}
+            {rooms_page_content(
+                rooms_state.into(),
+                join_input,
+                joining.into(),
+                join_error,
+                action_error.into(),
+                action_busy_room_id.into(),
+                action_dialog.into(),
+                on_request_leave,
+                on_request_archive,
+                on_cancel_action,
+                on_confirm_action,
+            )}
         </form>
     }
 }

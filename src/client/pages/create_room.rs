@@ -4,7 +4,7 @@ use web_sys::SubmitEvent;
 
 use crate::client::{
     context::page_title::use_static_page_title,
-    utils::rooms::{create_room_request, room_route},
+    utils::rooms::{create_room_request, room_route, validate_room_name_input},
 };
 
 stylance::import_style!(style, "create_room.module.scss");
@@ -49,7 +49,7 @@ fn create_room_page_content(
                             id="create-room-name"
                             class="g-text-input"
                             type="text"
-                            maxlength="72"
+                            maxlength="20"
                             placeholder="Moonlit Ledger"
                             prop:value=move || room_name.get()
                             on:input=move |event| {
@@ -93,11 +93,13 @@ pub fn CreateRoomPage() -> impl IntoView {
             return;
         }
 
-        let name = room_name.get_untracked().trim().to_string();
-        if name.is_empty() {
-            error.set(Some("Enter a room name.".to_string()));
-            return;
-        }
+        let name = match validate_room_name_input(&room_name.get_untracked()) {
+            Ok(name) => name,
+            Err(message) => {
+                error.set(Some(message));
+                return;
+            }
+        };
 
         error.set(None);
         submitting.set(true);

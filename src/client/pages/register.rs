@@ -6,7 +6,11 @@ use web_sys::SubmitEvent;
 use crate::{
     client::{
         context::{auth::use_auth_context, page_title::use_static_page_title},
-        utils::{api::parse_error_response, url::base_url},
+        utils::{
+            api::parse_error_response,
+            rooms::{MAX_USERNAME_LENGTH, validate_username_input},
+            url::base_url,
+        },
     },
     shared::data::user::AuthUser,
 };
@@ -71,11 +75,25 @@ pub(super) fn RegisterPage() -> impl IntoView {
         submitting.set(true);
         error.set(None);
 
+        let username_value = match validate_username_input(&username.get_untracked()) {
+            Ok(username) if username.len() >= 2 => username,
+            Ok(_) => {
+                submitting.set(false);
+                error.set(Some("User names need at least 2 characters.".to_string()));
+                return;
+            }
+            Err(message) => {
+                submitting.set(false);
+                error.set(Some(message));
+                return;
+            }
+        };
+
         let auth = auth.clone();
         let navigate = navigate.clone();
 
         let payload = RegisterRequest {
-            username: username.get_untracked(),
+            username: username_value,
             email: email.get_untracked(),
             password: password.get_untracked(),
         };
@@ -116,8 +134,12 @@ pub(super) fn RegisterPage() -> impl IntoView {
                             id="register-username-input"
                             class="g-text-input"
                             type="text"
+                            maxlength=MAX_USERNAME_LENGTH
                             prop:value=move || username.get()
-                            on:input=move |event| username.set(event_target_value(&event))
+                            on:input=move |event| {
+                                error.set(None);
+                                username.set(event_target_value(&event));
+                            }
                             autocomplete="username"
                             required=true
                         />

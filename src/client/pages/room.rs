@@ -14,8 +14,8 @@ use crate::{
 use crate::{
     client::{
         components::{
-            active_user_feed::ActiveUserFeed, dialog::Dialog, roll_editor::RollEditor,
-            roll_feed::RollFeed,
+            active_user_feed::ActiveUserFeed, add_room_member::AddRoomMember, dialog::Dialog,
+            roll_editor::RollEditor, roll_feed::RollFeed,
         },
         context::page_title::{NOT_FOUND_PAGE_TITLE, ROOMS_PAGE_TITLE, use_page_title_context},
         utils::{
@@ -248,6 +248,10 @@ fn room_page_content(
                                                 loading_more=loading_more
                                                 load_older_rolls=load_older_rolls
                                             />
+
+                                            <Show when=move || viewer.can_manage_members>
+                                                <AddRoomMember room_id=room.id />
+                                            </Show>
 
                                             <ActiveUserFeed
                                                 roster_members=roster_members

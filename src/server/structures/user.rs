@@ -11,6 +11,8 @@ use thiserror::Error;
 
 use crate::shared::data::user::{Email, Password, UserId, Username};
 
+const MAX_USERNAME_LENGTH: usize = 20;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PasswordHashed(String);
 
@@ -69,10 +71,10 @@ where
     let s: &str = de::Deserialize::deserialize(deserializer)?;
     let s = s.trim();
 
-    if s.len() < 2 || s.len() > 64 {
+    if s.len() < 2 || s.len() > MAX_USERNAME_LENGTH {
         Err(de::Error::invalid_length(
             s.len(),
-            &"A string between 2 and 64 characters long",
+            &"A string between 2 and 20 characters long",
         ))
     } else {
         Ok(Username::new(s.to_string()))

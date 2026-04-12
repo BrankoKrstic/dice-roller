@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dsl::{interpreter::EvalResult, parser::Ast},
-    shared::data::user::{Email, UserId, Username},
+    shared::data::user::{UserId, Username},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -29,8 +29,8 @@ pub struct CreateRoomRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InviteRoomMemberRequest {
-    pub email: Email,
+pub struct AddRoomMemberRequest {
+    pub username: Username,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,6 +38,7 @@ pub struct Room {
     pub id: RoomId,
     pub creator_id: UserId,
     pub name: String,
+    pub archived: bool,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -47,6 +48,7 @@ pub struct Room {
 pub enum RoomMembershipStatus {
     Pending,
     Joined,
+    Left,
     Kicked,
 }
 
@@ -55,6 +57,7 @@ impl RoomMembershipStatus {
         match self {
             Self::Pending => "pending",
             Self::Joined => "joined",
+            Self::Left => "left",
             Self::Kicked => "kicked",
         }
     }
@@ -63,6 +66,7 @@ impl RoomMembershipStatus {
         match value {
             "pending" => Some(Self::Pending),
             "joined" => Some(Self::Joined),
+            "left" => Some(Self::Left),
             "kicked" => Some(Self::Kicked),
             _ => None,
         }

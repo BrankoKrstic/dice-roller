@@ -30,7 +30,7 @@ use crate::{
     },
     shared::data::{
         room::{
-            ActiveRoomMember, CreateRoomRequest, InviteRoomMemberRequest, JoinedRoomSummary, Room,
+            ActiveRoomMember, AddRoomMemberRequest, CreateRoomRequest, JoinedRoomSummary, Room,
             RoomId, RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest,
             RoomRollSummary, RoomStreamEvent, RoomViewerState,
         },
@@ -281,6 +281,24 @@ impl RoomLiveHub {
             let _ = sender.send(RoomHubEvent::RosterChanged);
         }
     }
+
+    fn revoke_room(&self, room_id: RoomId, reason: String) {
+        let shutdowns = {
+            let mut state = self.inner.lock().expect("room live hub lock poisoned");
+            let Some(room) = state.rooms.remove(&room_id) else {
+                return;
+            };
+
+            room.connections
+                .into_values()
+                .map(|connection| connection.shutdown)
+                .collect::<Vec<_>>()
+        };
+
+        for shutdown in shutdowns {
+            let _ = shutdown.send(Some(reason.clone()));
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -370,23 +388,21 @@ async fn request_to_join_handler(
 }
 
 #[axum::debug_handler(state = AppState)]
-async fn invite_room_member_handler(
+async fn add_room_member_handler(
     State(rooms): State<RoomService>,
     State(room_live): State<RoomLiveHub>,
     Extension(user): Extension<AuthUser>,
     Path(room_id): Path<RoomId>,
-    Json(payload): Json<InviteRoomMemberRequest>,
+    Json(payload): Json<AddRoomMemberRequest>,
 ) -> RoomApiResult<Json<RoomMembership>> {
-    let membership = rooms
-        .add_member_by_email(user.id, room_id, payload.email)
-        .await?;
+    let membership = rooms.add_member(user.id, room_id, payload).await?;
     room_live.notify_roster_changed(room_id);
     info!(
         actor_user_id = user.id.into_inner(),
         room_id = room_id.into_inner(),
         target_user_id = membership.user_id.into_inner(),
         status = ?membership.status,
-        "invited room member"
+        "added room member"
     );
 
     Ok(Json(membership))
@@ -435,6 +451,44 @@ async fn kick_member_handler(
     );
 
     Ok(Json(membership))
+}
+
+#[axum::debug_handler(state = AppState)]
+async fn leave_room_handler(
+    State(rooms): State<RoomService>,
+    State(room_live): State<RoomLiveHub>,
+    Extension(user): Extension<AuthUser>,
+    Path(room_id): Path<RoomId>,
+) -> RoomApiResult<Json<RoomMembership>> {
+    let membership = rooms.leave_room(user.id, room_id).await?;
+    room_live.revoke_user(room_id, user.id, "room access changed".to_string());
+    room_live.notify_roster_changed(room_id);
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        status = ?membership.status,
+        "left room"
+    );
+
+    Ok(Json(membership))
+}
+
+#[axum::debug_handler(state = AppState)]
+async fn archive_room_handler(
+    State(rooms): State<RoomService>,
+    State(room_live): State<RoomLiveHub>,
+    Extension(user): Extension<AuthUser>,
+    Path(room_id): Path<RoomId>,
+) -> RoomApiResult<Json<Room>> {
+    let room = rooms.archive_room(user.id, room_id).await?;
+    room_live.revoke_room(room_id, "room was archived".to_string());
+    info!(
+        user_id = user.id.into_inner(),
+        room_id = room_id.into_inner(),
+        "archived room"
+    );
+
+    Ok(Json(room))
 }
 
 #[axum::debug_handler(state = AppState)]
@@ -559,7 +613,13 @@ async fn room_events_handler(
                                     .await
                                 {
                                     Ok(roster_members) => roster_members,
-                                    Err(RoomError::MembershipBlocked | RoomError::MembershipPending | RoomError::MembershipRequired) => {
+                                    Err(
+                                        RoomError::MembershipBlocked
+                                        | RoomError::MembershipLeft
+                                        | RoomError::MembershipPending
+                                        | RoomError::MembershipRequired
+                                        | RoomError::RoomArchived,
+                                    ) => {
                                         state.done = true;
                                         let event = RoomStreamEvent::AccessRevoked {
                                             reason: "room access changed".to_string(),
@@ -590,7 +650,13 @@ async fn room_events_handler(
                                     .await
                                 {
                                     Ok(snapshot) => snapshot,
-                                    Err(RoomError::MembershipBlocked | RoomError::MembershipPending | RoomError::MembershipRequired) => {
+                                    Err(
+                                        RoomError::MembershipBlocked
+                                        | RoomError::MembershipLeft
+                                        | RoomError::MembershipPending
+                                        | RoomError::MembershipRequired
+                                        | RoomError::RoomArchived,
+                                    ) => {
                                         state.done = true;
                                         let event = RoomStreamEvent::AccessRevoked {
                                             reason: "room access changed".to_string(),
@@ -628,9 +694,11 @@ async fn room_events_handler(
 pub fn create_rooms_router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_rooms_handler).post(create_room_handler))
+        .route("/{room_id}/archive", post(archive_room_handler))
         .route("/{room_id}/access", get(room_access_handler))
         .route("/{room_id}/join", post(request_to_join_handler))
-        .route("/{room_id}/members", post(invite_room_member_handler))
+        .route("/{room_id}/leave", post(leave_room_handler))
+        .route("/{room_id}/members", post(add_room_member_handler))
         .route(
             "/{room_id}/members/{user_id}/allow",
             post(allow_member_handler),

@@ -8,46 +8,61 @@ use crate::{
     server::db::{Db, DbError, DbExecutor},
     shared::data::{
         room::{
-            ActiveRoomMember, CreateRoomRequest, JoinedRoomSummary, Room, RoomId,
-            RoomMemberSummary, RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId,
+            ActiveRoomMember, AddRoomMemberRequest, CreateRoomRequest, JoinedRoomSummary, Room,
+            RoomId, RoomMemberSummary, RoomMembership, RoomMembershipStatus, RoomRoll, RoomRollId,
             RoomRollPage, RoomRollRequest, RoomRollSummary, RoomRosterMember, RoomStreamSnapshot,
             RoomViewerState, RoomViewerStatus,
         },
-        user::{Email, UserId, Username},
+        user::{UserId, Username},
     },
 };
 
 pub const DEFAULT_ROOM_ROLL_PAGE_LIMIT: usize = 50;
 pub const MAX_ROOM_ROLL_PAGE_LIMIT: usize = 100;
+pub const MAX_ROOM_NAME_LENGTH: usize = 20;
+pub const MAX_USERNAME_LENGTH: usize = 20;
+pub const MAX_ACTIVE_CREATED_ROOMS: usize = 5;
 
 #[derive(Debug, Error)]
 pub enum RoomError {
     #[error("invalid room name")]
     InvalidRoomName,
+    #[error("invalid username")]
+    InvalidUsername,
     #[error("user not found")]
     UserNotFound,
     #[error("room not found")]
     RoomNotFound,
+    #[error("room is archived")]
+    RoomArchived,
     #[error("membership not found")]
     MembershipNotFound,
     #[error("room creator privileges required")]
     NotRoomCreator,
+    #[error("room creator cannot leave")]
+    CreatorCannotLeave,
     #[error("room creator cannot be kicked")]
     CannotKickCreator,
-    #[error("membership is already pending")]
+    #[error("room creation limit reached")]
+    RoomCreationLimitReached,
+    #[error("player is already pending")]
     MembershipAlreadyPending,
-    #[error("membership is already joined")]
+    #[error("player is already joined")]
     MembershipAlreadyJoined,
-    #[error("membership is already kicked")]
+    #[error("player has already left")]
+    MembershipAlreadyLeft,
+    #[error("player is already kicked")]
     MembershipAlreadyKicked,
-    #[error("membership is blocked")]
+    #[error("player is blocked")]
     MembershipBlocked,
-    #[error("membership is pending approval")]
+    #[error("player has left the room")]
+    MembershipLeft,
+    #[error("player is pending approval")]
     MembershipPending,
     #[error("joined membership required")]
     MembershipRequired,
-    #[error("invited user not found")]
-    InvitedUserNotFound,
+    #[error("room member not found")]
+    RoomMemberNotFound,
     #[error("invalid roll expression: {0}")]
     InvalidRollExpression(String),
     #[error("invalid roll result: {0}")]
@@ -83,7 +98,10 @@ impl From<RoomError> for (StatusCode, Json<RoomErrorResponse>) {
     fn from(value: RoomError) -> Self {
         match value {
             RoomError::InvalidRoomName
+            | RoomError::InvalidUsername
+            | RoomError::CreatorCannotLeave
             | RoomError::CannotKickCreator
+            | RoomError::RoomCreationLimitReached
             | RoomError::InvalidRollExpression(_)
             | RoomError::InvalidRollResult(_) => (
                 StatusCode::BAD_REQUEST,
@@ -93,8 +111,9 @@ impl From<RoomError> for (StatusCode, Json<RoomErrorResponse>) {
             ),
             RoomError::UserNotFound
             | RoomError::RoomNotFound
+            | RoomError::RoomArchived
             | RoomError::MembershipNotFound
-            | RoomError::InvitedUserNotFound => (
+            | RoomError::RoomMemberNotFound => (
                 StatusCode::NOT_FOUND,
                 Json(RoomErrorResponse {
                     error: value.to_string(),
@@ -102,6 +121,7 @@ impl From<RoomError> for (StatusCode, Json<RoomErrorResponse>) {
             ),
             RoomError::NotRoomCreator
             | RoomError::MembershipBlocked
+            | RoomError::MembershipLeft
             | RoomError::MembershipPending
             | RoomError::MembershipRequired => (
                 StatusCode::FORBIDDEN,
@@ -111,6 +131,7 @@ impl From<RoomError> for (StatusCode, Json<RoomErrorResponse>) {
             ),
             RoomError::MembershipAlreadyPending
             | RoomError::MembershipAlreadyJoined
+            | RoomError::MembershipAlreadyLeft
             | RoomError::MembershipAlreadyKicked => (
                 StatusCode::CONFLICT,
                 Json(RoomErrorResponse {
@@ -149,6 +170,7 @@ impl RoomService {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     creator_id INTEGER NOT NULL,
                     name TEXT NOT NULL,
+                    archived INTEGER NOT NULL DEFAULT 0,
                     created_at INTEGER NOT NULL,
                     updated_at INTEGER NOT NULL,
                     CONSTRAINT fk_room_creator
@@ -166,7 +188,7 @@ impl RoomService {
             "CREATE TABLE IF NOT EXISTS members (
                     room_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
-                    status TEXT NOT NULL CHECK (status IN ('pending', 'joined', 'kicked')),
+                    status TEXT NOT NULL CHECK (status IN ('pending', 'joined', 'left', 'kicked')),
                     created_at INTEGER NOT NULL,
                     updated_at INTEGER NOT NULL,
                     PRIMARY KEY (room_id, user_id),
@@ -267,6 +289,7 @@ impl RoomService {
         let conn = self.db.connection()?;
 
         let tx = conn.transaction().await?;
+        enforce_active_room_limit(&tx, creator_id).await?;
         let room = insert_room(&tx, creator_id, &name).await?;
         insert_membership(&tx, room.id, creator_id, RoomMembershipStatus::Joined).await?;
         tx.commit().await?;
@@ -290,6 +313,7 @@ impl RoomService {
             return match membership.status {
                 RoomMembershipStatus::Pending => Err(RoomError::MembershipAlreadyPending),
                 RoomMembershipStatus::Joined => Err(RoomError::MembershipAlreadyJoined),
+                RoomMembershipStatus::Left => Err(RoomError::MembershipLeft),
                 RoomMembershipStatus::Kicked => Err(RoomError::MembershipBlocked),
             };
         }
@@ -312,7 +336,9 @@ impl RoomService {
 
         match membership.status {
             RoomMembershipStatus::Joined => Err(RoomError::MembershipAlreadyJoined),
-            RoomMembershipStatus::Pending | RoomMembershipStatus::Kicked => {
+            RoomMembershipStatus::Pending
+            | RoomMembershipStatus::Left
+            | RoomMembershipStatus::Kicked => {
                 update_membership_status(
                     &conn,
                     room_id,
@@ -343,6 +369,7 @@ impl RoomService {
 
         match membership.status {
             RoomMembershipStatus::Kicked => Err(RoomError::MembershipAlreadyKicked),
+            RoomMembershipStatus::Left => Err(RoomError::MembershipAlreadyLeft),
             RoomMembershipStatus::Pending | RoomMembershipStatus::Joined => {
                 update_membership_status(
                     &conn,
@@ -355,16 +382,17 @@ impl RoomService {
         }
     }
 
-    pub async fn add_member_by_email(
+    pub async fn add_member(
         &self,
         actor_id: UserId,
         room_id: RoomId,
-        email: Email,
+        payload: AddRoomMemberRequest,
     ) -> Result<RoomMembership, RoomError> {
+        let username = validate_username_input(payload.username.into_inner())?;
         let conn = self.db.connection()?;
         let room = require_room_creator(&conn, actor_id, room_id).await?;
-        let Some(target_user_id) = find_user_id_by_email(&conn, &email).await? else {
-            return Err(RoomError::InvitedUserNotFound);
+        let Some(target_user_id) = find_user_id_by_username(&conn, &username).await? else {
+            return Err(RoomError::RoomMemberNotFound);
         };
 
         if target_user_id == room.creator_id {
@@ -374,7 +402,9 @@ impl RoomService {
         match fetch_membership(&conn, room_id, target_user_id).await? {
             Some(membership) => match membership.status {
                 RoomMembershipStatus::Joined => Err(RoomError::MembershipAlreadyJoined),
-                RoomMembershipStatus::Pending | RoomMembershipStatus::Kicked => {
+                RoomMembershipStatus::Pending
+                | RoomMembershipStatus::Left
+                | RoomMembershipStatus::Kicked => {
                     update_membership_status(
                         &conn,
                         room_id,
@@ -389,6 +419,38 @@ impl RoomService {
                     .await
             }
         }
+    }
+
+    pub async fn leave_room(
+        &self,
+        actor_id: UserId,
+        room_id: RoomId,
+    ) -> Result<RoomMembership, RoomError> {
+        let conn = self.db.connection()?;
+        let room = require_room(&conn, room_id).await?;
+
+        if room.creator_id == actor_id {
+            return Err(RoomError::CreatorCannotLeave);
+        }
+
+        let Some(membership) = fetch_membership(&conn, room_id, actor_id).await? else {
+            return Err(RoomError::MembershipNotFound);
+        };
+
+        match membership.status {
+            RoomMembershipStatus::Joined => {
+                update_membership_status(&conn, room_id, actor_id, RoomMembershipStatus::Left).await
+            }
+            RoomMembershipStatus::Pending => Err(RoomError::MembershipPending),
+            RoomMembershipStatus::Left => Err(RoomError::MembershipAlreadyLeft),
+            RoomMembershipStatus::Kicked => Err(RoomError::MembershipBlocked),
+        }
+    }
+
+    pub async fn archive_room(&self, actor_id: UserId, room_id: RoomId) -> Result<Room, RoomError> {
+        let conn = self.db.connection()?;
+        require_room_creator(&conn, actor_id, room_id).await?;
+        archive_room_record(&conn, room_id).await
     }
 
     pub async fn add_roll_to_room(
@@ -410,6 +472,10 @@ impl RoomService {
                     status: RoomMembershipStatus::Pending,
                     ..
                 }) => return Err(RoomError::MembershipPending),
+                Some(RoomMembership {
+                    status: RoomMembershipStatus::Left,
+                    ..
+                }) => return Err(RoomError::MembershipLeft),
                 Some(RoomMembership {
                     status: RoomMembershipStatus::Kicked,
                     ..
@@ -513,6 +579,7 @@ impl RoomService {
         let viewer_status = match membership.status {
             RoomMembershipStatus::Joined => RoomViewerStatus::Joined,
             RoomMembershipStatus::Pending => RoomViewerStatus::Pending,
+            RoomMembershipStatus::Left => return Err(RoomError::MembershipLeft),
             RoomMembershipStatus::Kicked => RoomViewerStatus::Kicked,
         };
 
@@ -637,6 +704,10 @@ async fn authorize_room_read(
             ..
         }) => Err(RoomError::MembershipPending),
         Some(RoomMembership {
+            status: RoomMembershipStatus::Left,
+            ..
+        }) => Err(RoomError::MembershipLeft),
+        Some(RoomMembership {
             status: RoomMembershipStatus::Kicked,
             ..
         }) => Err(RoomError::MembershipBlocked),
@@ -648,7 +719,7 @@ async fn fetch_room(conn: &impl DbExecutor, room_id: RoomId) -> Result<Option<Ro
     let mut rows = conn
         .query_named(
             "rooms.fetch_room",
-            "SELECT id, creator_id, name, created_at, updated_at
+            "SELECT id, creator_id, name, archived, created_at, updated_at
             FROM rooms
             WHERE id = ?1",
             [room_id.into_inner()],
@@ -659,12 +730,18 @@ async fn fetch_room(conn: &impl DbExecutor, room_id: RoomId) -> Result<Option<Ro
         return Ok(None);
     };
 
+    let archived = row.get::<i64>(3)? != 0;
+    if archived {
+        return Err(RoomError::RoomArchived);
+    }
+
     Ok(Some(Room {
         id: RoomId(row.get::<i64>(0)?),
         creator_id: UserId::new(row.get::<i64>(1)?),
         name: row.get::<String>(2)?,
-        created_at: row.get::<i64>(3)?,
-        updated_at: row.get::<i64>(4)?,
+        archived,
+        created_at: row.get::<i64>(4)?,
+        updated_at: row.get::<i64>(5)?,
     }))
 }
 
@@ -703,15 +780,15 @@ async fn fetch_membership(
     }))
 }
 
-async fn find_user_id_by_email(
+async fn find_user_id_by_username(
     conn: &impl DbExecutor,
-    email: &Email,
+    username: &str,
 ) -> Result<Option<UserId>, RoomError> {
     let mut rows = conn
         .query_named(
-            "rooms.find_user_id_by_email",
-            "SELECT id FROM users WHERE email = ?1",
-            [email.as_str()],
+            "rooms.find_user_id_by_username",
+            "SELECT id FROM users WHERE username = ?1",
+            [username],
         )
         .await?;
 
@@ -769,7 +846,7 @@ async fn fetch_manageable_member_summaries(
             "SELECT m.user_id, u.username, m.status
             FROM members m
             JOIN users u ON u.id = m.user_id
-            WHERE m.room_id = ?1 AND m.user_id != ?2
+            WHERE m.room_id = ?1 AND m.user_id != ?2 AND m.status != 'left'
             ORDER BY m.created_at ASC, m.user_id ASC",
             (room_id.into_inner(), creator_id.into_inner()),
         )
@@ -801,12 +878,12 @@ async fn fetch_joined_room_summaries(
     let mut rows = conn
         .query_named(
             "rooms.fetch_joined_room_summaries",
-            "SELECT DISTINCT r.id, r.creator_id, r.name, r.created_at, r.updated_at
+            "SELECT DISTINCT r.id, r.creator_id, r.name, r.archived, r.created_at, r.updated_at
             FROM rooms r
             LEFT JOIN members m
                 ON m.room_id = r.id
                 AND m.user_id = ?1
-            WHERE r.creator_id = ?1 OR m.status = 'joined'
+            WHERE r.archived = 0 AND (r.creator_id = ?1 OR m.status = 'joined')
             ORDER BY r.updated_at DESC, r.id DESC",
             [viewer_id.into_inner()],
         )
@@ -818,8 +895,9 @@ async fn fetch_joined_room_summaries(
             id: RoomId(row.get::<i64>(0)?),
             creator_id: UserId::new(row.get::<i64>(1)?),
             name: row.get::<String>(2)?,
-            created_at: row.get::<i64>(3)?,
-            updated_at: row.get::<i64>(4)?,
+            archived: row.get::<i64>(3)? != 0,
+            created_at: row.get::<i64>(4)?,
+            updated_at: row.get::<i64>(5)?,
         };
         let latest_roll = fetch_latest_room_roll_summary(conn, room.id).await?;
 
@@ -1002,9 +1080,9 @@ async fn insert_room(
     let mut rows = conn
         .query_named(
             "rooms.insert_room",
-            "INSERT INTO rooms (creator_id, name, created_at, updated_at)
-            VALUES (?1, ?2, unixepoch('now'), unixepoch('now'))
-            RETURNING id, creator_id, name, created_at, updated_at",
+            "INSERT INTO rooms (creator_id, name, archived, created_at, updated_at)
+            VALUES (?1, ?2, 0, unixepoch('now'), unixepoch('now'))
+            RETURNING id, creator_id, name, archived, created_at, updated_at",
             (creator_id.into_inner(), name),
         )
         .await
@@ -1020,8 +1098,9 @@ async fn insert_room(
         id: RoomId(row.get::<i64>(0)?),
         creator_id: UserId::new(row.get::<i64>(1)?),
         name: row.get::<String>(2)?,
-        created_at: row.get::<i64>(3)?,
-        updated_at: row.get::<i64>(4)?,
+        archived: row.get::<i64>(3)? != 0,
+        created_at: row.get::<i64>(4)?,
+        updated_at: row.get::<i64>(5)?,
     })
 }
 
@@ -1057,6 +1136,69 @@ async fn insert_membership(
     })
 }
 
+async fn archive_room_record(conn: &impl DbExecutor, room_id: RoomId) -> Result<Room, RoomError> {
+    let mut rows = conn
+        .query_named(
+            "rooms.archive_room",
+            "UPDATE rooms
+            SET archived = 1, updated_at = unixepoch('now')
+            WHERE id = ?1 AND archived = 0
+            RETURNING id, creator_id, name, archived, created_at, updated_at",
+            [room_id.into_inner()],
+        )
+        .await?;
+
+    let Some(row) = rows.next().await? else {
+        return Err(RoomError::RoomNotFound);
+    };
+
+    Ok(Room {
+        id: RoomId(row.get::<i64>(0)?),
+        creator_id: UserId::new(row.get::<i64>(1)?),
+        name: row.get::<String>(2)?,
+        archived: row.get::<i64>(3)? != 0,
+        created_at: row.get::<i64>(4)?,
+        updated_at: row.get::<i64>(5)?,
+    })
+}
+
+async fn count_active_created_rooms(
+    conn: &impl DbExecutor,
+    creator_id: UserId,
+) -> Result<usize, RoomError> {
+    let mut rows = conn
+        .query_named(
+            "rooms.count_active_created_rooms",
+            "SELECT COUNT(*)
+            FROM rooms
+            WHERE creator_id = ?1 AND archived = 0",
+            [creator_id.into_inner()],
+        )
+        .await?;
+
+    let Some(row) = rows.next().await? else {
+        return Ok(0);
+    };
+
+    let count = row.get::<i64>(0)?;
+    usize::try_from(count).map_err(|_| {
+        RoomError::Database(DbError::Database(
+            "Failed to convert active created room count".to_string(),
+        ))
+    })
+}
+
+async fn enforce_active_room_limit(
+    conn: &impl DbExecutor,
+    creator_id: UserId,
+) -> Result<(), RoomError> {
+    if count_active_created_rooms(conn, creator_id).await? >= MAX_ACTIVE_CREATED_ROOMS {
+        return Err(RoomError::RoomCreationLimitReached);
+    }
+
+    Ok(())
+}
+
 async fn update_membership_status(
     conn: &impl DbExecutor,
     room_id: RoomId,
@@ -1089,8 +1231,17 @@ async fn update_membership_status(
 
 fn validate_room_name(name: String) -> Result<String, RoomError> {
     let trimmed = name.trim();
-    if trimmed.is_empty() {
+    if trimmed.is_empty() || trimmed.len() > MAX_ROOM_NAME_LENGTH {
         return Err(RoomError::InvalidRoomName);
+    }
+
+    Ok(trimmed.to_string())
+}
+
+fn validate_username_input(username: String) -> Result<String, RoomError> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() || trimmed.len() > MAX_USERNAME_LENGTH {
+        return Err(RoomError::InvalidUsername);
     }
 
     Ok(trimmed.to_string())

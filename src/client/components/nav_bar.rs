@@ -51,7 +51,7 @@ pub fn NavBar() -> impl IntoView {
                     <div class=style::nav_group>
                         <a class=style::nav_link href="/" on:click=move |_| menu_open.set(false)>
                             <span class=style::nav_link_label>"Roller"</span>
-                            <span class=style::nav_link_hint>"Live room surface"</span>
+                            <span class=style::nav_link_hint>"Local ledger"</span>
                         </a>
                         <a
                             class=style::nav_link

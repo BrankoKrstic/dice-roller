@@ -64,13 +64,13 @@ pub fn latest_roll_activity_line(latest_roll: &Option<RoomRollSummary>) -> Strin
         .as_ref()
         .map(|roll| {
             format!(
-                "Latest motion: {} rolled {} for a {} total.",
+                "{} rolled {} for a {} total.",
                 roll.username.as_str(),
                 roll.roll_expression,
                 roll.final_result
             )
         })
-        .unwrap_or_else(|| "Latest motion: The ledger is quiet for now.".to_string())
+        .unwrap_or_else(|| "The room is quiet for now.".to_string())
 }
 
 pub fn room_roll_feed_from_page(page: &RoomRollPage) -> DiceRollFeed {

@@ -26,18 +26,14 @@ fn create_room_page_content(
             <div class=style::create_room_layout>
                 <section class=format!("g-panel g-panel-strong {}", style::hero_card)>
                     <p class="g-section-label">"New table"</p>
-                    <h1 class="g-section-title">"Create a room and open the live ledger."</h1>
+                    <h1 class="g-section-title">"Create a room and open the live feed"</h1>
                     <p class="g-section-summary">
-                        "Start with a room name only. Once the room exists, approvals, kicks, and live rolls all happen from the room page."
+                        "Start with a room name only. Once the room exists, approvals, kicks, and rolls all happen from the room page."
                     </p>
                     <dl class=style::hero_meta>
                         <div class=style::hero_meta_row>
                             <dt>"What happens next"</dt>
                             <dd>"You land in the room immediately as its admin."</dd>
-                        </div>
-                        <div class=style::hero_meta_row>
-                            <dt>"Member flow"</dt>
-                            <dd>"Join requests and reinstatements stay in the room rail."</dd>
                         </div>
                     </dl>
                 </section>
@@ -61,9 +57,6 @@ fn create_room_page_content(
                                 room_name.set(event_target_value(&event));
                             }
                         />
-                        <p class=style::form_hint>
-                            "Keep the name concise so it reads cleanly in the joined rooms board and the room header."
-                        </p>
                         {move || {
                             error
                                 .get()

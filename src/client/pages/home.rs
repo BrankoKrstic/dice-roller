@@ -73,7 +73,7 @@ pub(crate) fn HomePage() -> impl IntoView {
                         <li>"Rolls immediately append to the activity feed."</li>
                         <li>
                             "Visit the "<a href="/reference">"reference page"</a>
-                            " for help with the expressio nnotation."
+                            " for help with the expression notation."
                         </li>
                         <Show when=move || auth.user.get().is_none()>
                             <li>

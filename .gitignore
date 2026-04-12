@@ -13,3 +13,4 @@ style/bundle.scss
 .env
 :local:
 .worktrees/
+local.db*

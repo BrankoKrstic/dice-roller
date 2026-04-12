@@ -121,7 +121,6 @@ pub trait DbExecutor {
 }
 
 impl Db {
-
     pub async fn from_env() -> Result<Self, DbError> {
         let db_url = env::var("TURSO_DATABASE_URL")
             .map_err(|_| DbError::MissingEnv("TURSO_DATABASE_URL"))?;
@@ -151,6 +150,32 @@ impl Db {
             instrumentation,
         };
         let conn = db.connection()?;
+        let db_clone = db.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(30)).await;
+                let started_at = Instant::now();
+
+                if let Err(err) = db_clone.db.sync().await {
+                    error!(
+                        statement = "db.sync",
+                        kind = "sync",
+                        duration_ms = started_at.elapsed().as_millis() as u64,
+                        outcome = "failed",
+                        error = %err,
+                        "database sync failed"
+                    );
+                } else {
+                    info!(
+                        statement = "db.sync",
+                        kind = "sync",
+                        duration_ms = started_at.elapsed().as_millis() as u64,
+                        outcome = "complete",
+                        "database sync completed"
+                    );
+                }
+            }
+        });
         conn.execute_named("db.enable_foreign_keys", "PRAGMA foreign_keys = ON", ())
             .await
             .map_err(|error| DbError::Database(error.to_string()))?;
@@ -254,7 +279,7 @@ impl DbTransaction {
     {
         <Self as DbExecutor>::execute(self, sql, params).await
     }
-  
+
     pub async fn execute_named<P>(
         &self,
         statement: &'static str,

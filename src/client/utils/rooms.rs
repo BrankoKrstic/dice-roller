@@ -11,8 +11,8 @@ use crate::{
     shared::{
         data::room::{
             ActiveRoomMember, AddRoomMemberRequest, CreateRoomRequest, JoinedRoomSummary, Room,
-            RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest,
-            RoomRollSummary, RoomViewerState,
+            RoomMembership, RoomRoll, RoomRollId, RoomRollPage, RoomRollRequest, RoomRollSummary,
+            RoomViewerState,
         },
         utils::time::format_timestamp,
     },
@@ -238,7 +238,10 @@ pub async fn allow_member_request(room_id: i64, user_id: i64) -> Result<RoomMemb
     response.json().await.map_err(|error| error.to_string())
 }
 
-pub async fn add_room_member_request(room_id: i64, username: &str) -> Result<RoomMembership, String> {
+pub async fn add_room_member_request(
+    room_id: i64,
+    username: &str,
+) -> Result<RoomMembership, String> {
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{}/api/rooms/{room_id}/members", base_url()))

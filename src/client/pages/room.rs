@@ -216,9 +216,6 @@ fn room_page_content(
                                                 </div>
 
                                                 <div class=style::room_header_meta>
-                                                    <span class=style::room_id_badge>
-                                                        {format!("#{}", room.id.into_inner())}
-                                                    </span>
                                                     <span class=style::room_note_badge>
                                                         {if viewer.can_manage_members {
                                                             "Admin".to_string()

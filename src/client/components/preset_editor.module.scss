@@ -170,10 +170,6 @@
   background: color-mix(in srgb, var(--danger) 9%, var(--panel));
 }
 
-.preset-sr-note {
-  display: none;
-}
-
 @media (max-width: 720px) {
   .preset-header {
     grid-template-columns: 1fr;

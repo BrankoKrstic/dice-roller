@@ -317,9 +317,7 @@ pub fn PresetEditor(
                                             <span class=style::preset_empty_title>
                                                 "No presets saved yet."
                                             </span>
-                                            <p class="g-result-hint">
-                                                "Save the current expression to keep fast access to repeat rolls."
-                                            </p>
+                                            <p class="g-result-hint">"Saved rolls will appear here."</p>
                                         </div>
                                     }
                                         .into_any()
@@ -330,7 +328,6 @@ pub fn PresetEditor(
                                         .map(|preset| {
                                             let apply_expr = preset.expr.clone();
                                             let delete_id = preset.id.0;
-                                            let delete_name = preset.name.clone();
 
                                             view! {
                                                 <article class=style::preset_card>

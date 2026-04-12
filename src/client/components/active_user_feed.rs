@@ -67,8 +67,6 @@ pub fn ActiveUserFeed(
                                                     <strong class=style::presence_name>
                                                         {member.username.as_str().to_string()}
                                                     </strong>
-                                                </div>
-                                                <div class=style::presence_meta>
                                                     <div class=style::presence_badges>
                                                         <Show when=move || member.is_creator>
                                                             <span class=style::presence_badge>"GM"</span>
@@ -82,57 +80,51 @@ pub fn ActiveUserFeed(
                                                             </span>
                                                         </Show>
                                                     </div>
-                                                    <Show when=move || can_manage_members && !member.is_creator>
-                                                        <div class=style::presence_actions>
-                                                            <Show when=move || {
-                                                                matches!(
-                                                                    member.status,
-                                                                    RoomMembershipStatus::Pending | RoomMembershipStatus::Kicked
-                                                                )
-                                                            }>
-                                                                <button
-                                                                    class="g-button-utility"
-                                                                    type="button"
-                                                                    prop:disabled=move || {
-                                                                        busy_user_id.get() == Some(user_id)
-                                                                    }
-                                                                    on:click={
-                                                                        let on_allow = on_allow.clone();
-                                                                        move |_| on_allow.run(allow_user_id)
-                                                                    }
-                                                                >
-                                                                    {move || {
-                                                                        if member.status == RoomMembershipStatus::Kicked {
-                                                                            "Unkick"
-                                                                        } else {
-                                                                            "Admit"
-                                                                        }
-                                                                    }}
-                                                                </button>
-                                                            </Show>
-                                                            <Show when=move || {
-                                                                matches!(
-                                                                    member.status,
-                                                                    RoomMembershipStatus::Pending | RoomMembershipStatus::Joined
-                                                                )
-                                                            }>
-                                                                <button
-                                                                    class="g-button-ghost"
-                                                                    type="button"
-                                                                    prop:disabled=move || {
-                                                                        busy_user_id.get() == Some(user_id)
-                                                                    }
-                                                                    on:click={
-                                                                        let on_request_kick = on_request_kick.clone();
-                                                                        move |_| on_request_kick.run(kick_user_id)
-                                                                    }
-                                                                >
-                                                                    "Kick"
-                                                                </button>
-                                                            </Show>
-                                                        </div>
-                                                    </Show>
                                                 </div>
+                                                <Show when=move || can_manage_members && !member.is_creator>
+                                                    <div class=style::presence_actions>
+                                                        <Show when=move || {
+                                                            matches!(
+                                                                member.status,
+                                                                RoomMembershipStatus::Pending | RoomMembershipStatus::Kicked
+                                                            )
+                                                        }>
+                                                            <button
+                                                                class="g-button-utility"
+                                                                type="button"
+                                                                prop:disabled=move || {
+                                                                    busy_user_id.get() == Some(user_id)
+                                                                }
+                                                                on:click=move |_| on_allow.run(allow_user_id)
+                                                            >
+                                                                {move || {
+                                                                    if member.status == RoomMembershipStatus::Kicked {
+                                                                        "Unkick"
+                                                                    } else {
+                                                                        "Admit"
+                                                                    }
+                                                                }}
+                                                            </button>
+                                                        </Show>
+                                                        <Show when=move || {
+                                                            matches!(
+                                                                member.status,
+                                                                RoomMembershipStatus::Pending | RoomMembershipStatus::Joined
+                                                            )
+                                                        }>
+                                                            <button
+                                                                class="g-button-ghost"
+                                                                type="button"
+                                                                prop:disabled=move || {
+                                                                    busy_user_id.get() == Some(user_id)
+                                                                }
+                                                                on:click=move |_| on_request_kick.run(kick_user_id)
+                                                            >
+                                                                "Kick"
+                                                            </button>
+                                                        </Show>
+                                                    </div>
+                                                </Show>
                                             </li>
                                         }
                                     }

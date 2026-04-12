@@ -2,8 +2,6 @@
 .presence-header,
 .presence-list,
 .presence-identity,
-.presence-meta,
-.presence-badges,
 .presence-actions {
   display: grid;
 }
@@ -27,7 +25,6 @@
 }
 
 .presence-summary,
-.presence-note,
 .presence-empty,
 .presence-feedback {
   margin: 0;
@@ -136,14 +133,11 @@
   font-size: 0.98rem;
 }
 
-.presence-meta {
-  gap: 0.7rem;
-  justify-items: end;
-}
-
 .presence-badges {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.45rem;
-  justify-items: end;
+  align-items: center;
 }
 
 .presence-badge {
@@ -163,7 +157,9 @@
 
 .presence-actions {
   gap: 0.55rem;
+  align-content: end;
   justify-items: end;
+  align-self: end;
 }
 
 @media (max-width: 620px) {
@@ -171,9 +167,7 @@
     grid-template-columns: 1fr;
   }
 
-  .presence-meta,
-  .presence-badges,
   .presence-actions {
-    justify-items: stretch;
+    justify-items: end;
   }
 }

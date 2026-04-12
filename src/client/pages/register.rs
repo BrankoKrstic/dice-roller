@@ -5,7 +5,7 @@ use web_sys::SubmitEvent;
 
 use crate::{
     client::{
-        context::auth::use_auth_context,
+        context::{auth::use_auth_context, page_title::use_static_page_title},
         utils::{api::parse_error_response, url::base_url},
     },
     shared::data::user::AuthUser,
@@ -42,6 +42,8 @@ async fn register_user_request(payload: RegisterRequest) -> Result<AuthUser, Str
 
 #[component]
 pub(super) fn RegisterPage() -> impl IntoView {
+    use_static_page_title("Register");
+
     let auth = use_auth_context();
     let navigate = use_navigate();
 

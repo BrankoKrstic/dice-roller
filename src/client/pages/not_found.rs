@@ -1,7 +1,11 @@
 use leptos::prelude::*;
 
+use crate::client::context::page_title::use_static_page_title;
+
 #[component]
 pub fn NotFoundPage() -> impl IntoView {
+    use_static_page_title("Not Found");
+
     view! {
         <section class="g-page g-page-shell">
             <div class="g-panel g-panel-strong">

@@ -2,7 +2,10 @@ use leptos::{prelude::*, task::spawn_local};
 use leptos_router::hooks::use_navigate;
 use web_sys::SubmitEvent;
 
-use crate::client::utils::rooms::{create_room_request, room_route};
+use crate::client::{
+    context::page_title::use_static_page_title,
+    utils::rooms::{create_room_request, room_route},
+};
 
 stylance::import_style!(style, "create_room.module.scss");
 
@@ -84,6 +87,8 @@ fn create_room_page_content(
 
 #[component]
 pub fn CreateRoomPage() -> impl IntoView {
+    use_static_page_title("Create Room");
+
     let navigate = use_navigate();
     let room_name = RwSignal::new(String::new());
     let submitting = RwSignal::new(false);

@@ -3,9 +3,12 @@ use leptos_router::hooks::use_navigate;
 use web_sys::SubmitEvent;
 
 use crate::{
-    client::utils::rooms::{
-        active_member_count_label, join_room_request, latest_roll_activity_line,
-        list_joined_rooms_request, parse_room_id_input, room_route,
+    client::{
+        context::page_title::use_static_page_title,
+        utils::rooms::{
+            join_room_request, latest_roll_activity_line, list_joined_rooms_request,
+            parse_room_id_input, room_route,
+        },
     },
     shared::data::room::JoinedRoomSummary,
 };
@@ -203,6 +206,8 @@ fn rooms_page_content(
 
 #[component]
 pub fn RoomsPage() -> impl IntoView {
+    use_static_page_title("Rooms");
+
     let navigate = use_navigate();
     let join_input = RwSignal::new(String::new());
     let join_error = RwSignal::new(None::<String>);

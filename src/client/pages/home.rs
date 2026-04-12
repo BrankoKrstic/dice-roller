@@ -6,7 +6,7 @@ use leptos::prelude::*;
 use crate::{
     client::{
         components::{roll_editor::RollEditor, roll_feed::RollFeed},
-        context::auth::use_auth_context,
+        context::{auth::use_auth_context, page_title::use_static_page_title},
         utils::roll_feed::{DiceRoll, DiceRollFeed},
     },
     dsl::parse_and_roll,
@@ -35,6 +35,8 @@ fn build_local_roll(expr: String, result: crate::dsl::interpreter::EvalResult) -
 
 #[component]
 pub(crate) fn HomePage() -> impl IntoView {
+    use_static_page_title("Local Ledger");
+
     let auth = use_auth_context();
     let feed = RwSignal::new(DiceRollFeed::new());
     let roll_error = RwSignal::new(None::<String>);

@@ -1,7 +1,7 @@
 use std::env;
 
-use axum::http::{header, HeaderName};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use axum::http::{HeaderName, header};
+use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 const DEFAULT_LOG_FILTER: &str = "debug,dice_roller=info,tower_http=info";
 

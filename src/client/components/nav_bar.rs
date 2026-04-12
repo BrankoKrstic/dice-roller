@@ -2,7 +2,10 @@ use leptos::{prelude::*, task::spawn_local};
 
 use crate::client::{
     components::dark_mode_toggle::DarkModeToggle,
-    context::auth::{logout, use_auth_context},
+    context::{
+        auth::{logout, use_auth_context},
+        page_title::use_page_title_context,
+    },
 };
 
 stylance::import_style!(style, "nav_bar.module.scss");
@@ -10,6 +13,7 @@ stylance::import_style!(style, "nav_bar.module.scss");
 #[component]
 pub fn NavBar() -> impl IntoView {
     let auth = use_auth_context();
+    let page_title = use_page_title_context();
     let menu_open = RwSignal::new(false);
 
     let toggle_menu = move |_| {
@@ -24,7 +28,7 @@ pub fn NavBar() -> impl IntoView {
                         <span class=style::brand_mark_text>"d20"</span>
                     </span>
                     <span class=style::brand_copy>
-                        <span class="g-page-eyebrow">"Session Ledger"</span>
+                        <span class="g-page-eyebrow">{move || page_title.get()}</span>
                         <span class=style::brand_text>"Dice Roller"</span>
                     </span>
                 </a>

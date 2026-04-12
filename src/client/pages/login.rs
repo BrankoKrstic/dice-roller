@@ -5,7 +5,7 @@ use web_sys::SubmitEvent;
 
 use crate::{
     client::{
-        context::auth::use_auth_context,
+        context::{auth::use_auth_context, page_title::use_static_page_title},
         utils::{api::parse_error_response, url::base_url},
     },
     shared::data::user::AuthUser,
@@ -38,6 +38,8 @@ async fn login_user_request(payload: LoginRequest) -> Result<AuthUser, String> {
 
 #[component]
 pub(super) fn LoginPage() -> impl IntoView {
+    use_static_page_title("Login");
+
     let auth = use_auth_context();
     let navigate = use_navigate();
 

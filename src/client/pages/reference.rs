@@ -1,6 +1,9 @@
 use leptos::prelude::*;
 
-use crate::client::pages::reference_content::{REFERENCE_SECTIONS, ReferenceEntry};
+use crate::client::{
+    context::page_title::use_static_page_title,
+    pages::reference_content::{REFERENCE_SECTIONS, ReferenceEntry},
+};
 
 stylance::import_style!(style, "reference.module.scss");
 
@@ -29,6 +32,8 @@ fn render_entry(entry: &'static ReferenceEntry) -> impl IntoView {
 
 #[component]
 pub fn ReferencePage() -> impl IntoView {
+    use_static_page_title("Reference");
+
     view! {
         <section class=format!("g-page g-page-shell {}", style::reference_layout)>
             <div class=format!("g-panel g-panel-strong {}", style::reference_hero)>

@@ -17,6 +17,7 @@ use crate::{
             active_user_feed::ActiveUserFeed, dialog::Dialog, roll_editor::RollEditor,
             roll_feed::RollFeed,
         },
+        context::page_title::{NOT_FOUND_PAGE_TITLE, ROOMS_PAGE_TITLE, use_page_title_context},
         utils::{
             roll_feed::DiceRollFeed,
             rooms::{
@@ -312,6 +313,7 @@ fn room_page_content(
 
 #[component]
 pub fn RoomPage() -> impl IntoView {
+    let page_title = use_page_title_context();
     let params = use_params_map();
     let access_state = RwSignal::new(RoomAccessState::Loading);
     let current_room_id = RwSignal::new(None::<RoomId>);
@@ -334,6 +336,16 @@ pub fn RoomPage() -> impl IntoView {
     let pending_poll = Rc::new(RefCell::new(None::<IntervalHandle>));
     #[cfg(feature = "hydrate")]
     let subscription_target = RwSignal::new(RoomSubscriptionTarget::None);
+
+    Effect::new(move |_| {
+        let title = match access_state.get() {
+            RoomAccessState::Loading => ROOMS_PAGE_TITLE.to_string(),
+            RoomAccessState::Ready(viewer_state) => viewer_state.room.name,
+            RoomAccessState::Error(_) => NOT_FOUND_PAGE_TITLE.to_string(),
+        };
+
+        page_title.set(title);
+    });
 
     Effect::new(move |_| {
         let raw_room_id = params.get().get("roomId").unwrap_or_default();

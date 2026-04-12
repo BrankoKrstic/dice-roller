@@ -2,7 +2,10 @@ use leptos::prelude::*;
 
 use crate::{
     ChanceResult,
-    client::components::roll_editor::{EditorComponent, EditorState},
+    client::{
+        components::roll_editor::{EditorComponent, EditorState},
+        context::page_title::use_static_page_title,
+    },
 };
 
 #[cfg(feature = "hydrate")]
@@ -178,6 +181,8 @@ fn StatsResultPanel(
 
 #[component]
 pub fn StatsPage() -> impl IntoView {
+    use_static_page_title("Simulation");
+
     let (variant, set_variant) = signal(CalculatorVariant::Ac);
     let (target, set_target) = signal(15);
     let to_hit_editor = RwSignal::new(EditorState::default());

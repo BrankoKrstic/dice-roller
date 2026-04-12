@@ -1,12 +1,14 @@
 .switch {
   position: relative;
-  display: inline-block;
-  width: 3.35rem;
-  height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--control-height) + 0.55rem);
+  height: var(--control-height);
   cursor: pointer;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
-  background: var(--panel-strong);
+  background: color-mix(in srgb, var(--panel-strong) 90%, transparent);
   box-shadow: var(--shadow-soft);
 }
 
@@ -14,6 +16,11 @@
   opacity: 0;
   width: 0;
   height: 0;
+}
+
+.switch:hover {
+  border-color: var(--line-strong);
+  background: var(--accent-soft);
 }
 
 @media (pointer: fine) {
@@ -33,7 +40,7 @@
 .slider::before {
   content: "";
   position: absolute;
-  inset: 0.35rem;
+  inset: 0.3rem;
   border-radius: calc(var(--radius-sm) - 0.1rem);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
@@ -74,8 +81,8 @@
 }
 
 .switch svg {
-  width: 1.65rem;
-  height: 1.65rem;
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 .switch svg * {

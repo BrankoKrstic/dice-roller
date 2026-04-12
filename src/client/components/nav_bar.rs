@@ -23,27 +23,29 @@ pub fn NavBar() -> impl IntoView {
     view! {
         <header class=style::header>
             <div class=style::header_inner>
-                <a class=style::brand href="/" on:click=move |_| menu_open.set(false)>
-                    <span class=style::brand_mark>
-                        <span class=style::brand_mark_text>"d20"</span>
-                    </span>
-                    <span class=style::brand_copy>
-                        <span class="g-page-eyebrow">{move || page_title.get()}</span>
-                        <span class=style::brand_text>"Dice Roller"</span>
-                    </span>
-                </a>
+                <div class=style::header_shell>
+                    <a class=style::brand_link href="/" on:click=move |_| menu_open.set(false)>
+                        <span class=style::brand_mark>
+                            <span class=style::brand_mark_text>"d20"</span>
+                        </span>
+                        <span class=style::brand_copy>
+                            <span class="g-page-eyebrow">{move || page_title.get()}</span>
+                            <span class=style::brand_text>"Dice Roller"</span>
+                        </span>
+                    </a>
 
-                <div class=style::header_tools>
-                    <button
-                        class=style::menu_toggle
-                        type="button"
-                        aria-controls="primary-site-nav"
-                        aria-expanded=move || if menu_open.get() { "true" } else { "false" }
-                        on:click=toggle_menu
-                    >
-                        {move || if menu_open.get() { "Close" } else { "Menu" }}
-                    </button>
-                    <DarkModeToggle />
+                    <div class=style::header_controls>
+                        <DarkModeToggle />
+                        <button
+                            class=style::menu_toggle
+                            type="button"
+                            aria-controls="primary-site-nav"
+                            aria-expanded=move || if menu_open.get() { "true" } else { "false" }
+                            on:click=toggle_menu
+                        >
+                            {move || if menu_open.get() { "Close" } else { "Menu" }}
+                        </button>
+                    </div>
                 </div>
 
                 <nav

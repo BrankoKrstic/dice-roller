@@ -1,0 +1,26 @@
+# Get started with a build env with Rust nightly
+FROM rustlang/rust:nightly-alpine as builder
+
+RUN apk update && \
+    apk add --no-cache bash curl npm libc-dev binaryen
+
+RUN npm install -g sass
+
+RUN curl --proto '=https' --tlsv1.3 -LsSf https://github.com/leptos-rs/cargo-leptos/releases/latest/download/cargo-leptos-installer.sh | sh
+
+# Add the WASM target
+RUN rustup target add wasm32-unknown-unknown
+
+RUN cargo install stylance-cli
+
+WORKDIR /work
+COPY . .
+
+RUN ./build.sh
+
+
+FROM nginx:mainline-alpine
+COPY --from=builder /work/target/site/ /work/site/
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY nginx/getenvdata.sh /etc/nginx/getenvdata.sh
+CMD /etc/nginx/getenvdata.sh && exec nginx -g 'daemon off;'

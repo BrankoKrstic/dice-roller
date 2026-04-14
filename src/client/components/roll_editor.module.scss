@@ -51,6 +51,17 @@
   background: color-mix(in srgb, var(--panel-strong) 90%, transparent);
 }
 
+.die-card[data-active="true"] {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line-strong));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-soft) 78%, transparent),
+      color-mix(in srgb, var(--panel-strong) 88%, transparent)
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
 .die-card-face {
   min-height: 3.1rem;
   border: 1px solid transparent;
@@ -87,6 +98,11 @@
   background: var(--accent-soft);
 }
 
+.die-card[data-active="true"] .die-card-step {
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 50%, var(--panel-strong));
+}
+
 .die-card-count {
   display: block;
   min-width: 2ch;
@@ -95,6 +111,11 @@
   font-family: var(--font-mono);
   font-size: 1rem;
   color: var(--ink-muted);
+}
+
+.die-card[data-active="true"] .die-card-count {
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .expression-editor-input {

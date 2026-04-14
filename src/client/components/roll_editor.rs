@@ -170,7 +170,10 @@ fn DieCard(
     #[prop(into)] on_sub_click: Callback<()>,
 ) -> impl IntoView {
     view! {
-        <article class=style::die_card>
+        <article
+            class=style::die_card
+            data-active=move || if count.get() != 0 { "true" } else { "false" }
+        >
             <button
                 class=style::die_card_face
                 type="button"
@@ -201,6 +204,20 @@ fn DieCard(
                 </button>
             </div>
         </article>
+    }
+}
+
+pub fn current_expression_signal(state: RwSignal<EditorState>) -> Signal<String> {
+    Signal::derive(move || state.get().get_expr())
+}
+
+#[component]
+pub fn EditorExpressionPreview(#[prop(into)] expression: Signal<String>) -> impl IntoView {
+    view! {
+        <div class=style::roll_editor_preview>
+            <span class="g-field-label">"Current expression"</span>
+            <code class=style::roll_editor_preview_code>{move || expression.get()}</code>
+        </div>
     }
 }
 
@@ -334,7 +351,7 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
 #[component]
 pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
     let state = RwSignal::new(EditorState::default());
-    let current_expression = Signal::derive(move || state.get().get_expr());
+    let current_expression = current_expression_signal(state);
 
     view! {
         <section class=style::roll_editor>
@@ -348,12 +365,7 @@ pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
 
             <EditorComponent state=state />
             <div class=style::roll_editor_footer>
-                <div class=style::roll_editor_preview>
-                    <span class="g-field-label">"Current expression"</span>
-                    <code class=style::roll_editor_preview_code>
-                        {move || state.get().get_expr()}
-                    </code>
-                </div>
+                <EditorExpressionPreview expression=current_expression />
 
                 <div class=style::roll_editor_actions>
                     <a class="g-button-ghost" href="/reference">

@@ -266,9 +266,6 @@ fn ExpressionEditor(expr: RwSignal<String>) -> impl IntoView {
                 prop:value=move || expr.get()
                 on:input=move |event| expr.set(event_target_value(&event))
             />
-            <p class="g-result-hint">
-                "Paste exact notation here when the table already knows the command."
-            </p>
         </div>
     }
 }

@@ -70,7 +70,7 @@ async fn archive_preset_request(preset_id: i64) -> Result<(), String> {
         .map_err(|error| error.to_string())?;
 
     if !response.status().is_success() {
-        return Err(parse_error_response(response, "Failed to archive preset").await);
+        return Err(parse_error_response(response, "Failed to delete preset").await);
     }
 
     Ok(())
@@ -361,9 +361,9 @@ pub fn PresetEditor(
                                                         >
                                                             {move || {
                                                                 if archiving_id.get() == Some(delete_id) {
-                                                                    "Archiving..."
+                                                                    "Deleting..."
                                                                 } else {
-                                                                    "Archive"
+                                                                    "Delete"
                                                                 }
                                                             }}
                                                         </button>
@@ -461,9 +461,9 @@ pub fn PresetEditor(
 
                         <Dialog
                             open=delete_dialog_open
-                            title="Archive preset".to_string()
+                            title="Delete preset".to_string()
                             label="Preset controls"
-                            summary="Archived presets leave the quick rail so the editor only keeps active moves."
+                            summary="Preset will be deleted from the quick access options"
                                 .to_string()
                             on_close=dismiss_dialog
                         >
@@ -473,11 +473,11 @@ pub fn PresetEditor(
                                         .get()
                                         .map(|preset| {
                                             format!(
-                                                "Archive \"{}\" from your preset rail?",
+                                                "Delete \"{}\" from your presets?",
                                                 preset.name,
                                             )
                                         })
-                                        .unwrap_or_else(|| "Archive this preset?".to_string())
+                                        .unwrap_or_else(|| "Delete this preset?".to_string())
                                 }}
                             </p>
                             {move || {
@@ -503,9 +503,9 @@ pub fn PresetEditor(
                                 >
                                     {move || {
                                         if archiving_id.get().is_some() {
-                                            "Archiving..."
+                                            "Deleting..."
                                         } else {
-                                            "Archive preset"
+                                            "Delete preset"
                                         }
                                     }}
                                 </button>

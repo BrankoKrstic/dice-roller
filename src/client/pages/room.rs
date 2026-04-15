@@ -7,7 +7,7 @@ use leptos_router::hooks::use_params_map;
 #[cfg(feature = "hydrate")]
 use crate::{
     client::utils::rooms::{
-        IntervalHandle, RoomEventStream, append_live_room_roll, room_roll_feed_from_page,
+        append_live_room_roll, room_roll_feed_from_page, IntervalHandle, RoomEventStream,
     },
     shared::data::room::RoomStreamEvent,
 };
@@ -21,7 +21,7 @@ use crate::{
             roll_editor::{EditorState, RollEditor},
             roll_feed::RollFeed,
         },
-        context::page_title::{NOT_FOUND_PAGE_TITLE, ROOMS_PAGE_TITLE, use_page_title_context},
+        context::page_title::{use_page_title_context, NOT_FOUND_PAGE_TITLE, ROOMS_PAGE_TITLE},
         utils::{
             roll_feed::DiceRollFeed,
             rooms::{
@@ -56,6 +56,316 @@ enum RoomSubscriptionTarget {
     None,
 }
 
+fn page_title_for_access_state(access_state: RoomAccessState) -> String {
+    match access_state {
+        RoomAccessState::Loading => ROOMS_PAGE_TITLE.to_string(),
+        RoomAccessState::Ready(viewer_state) => viewer_state.room.name,
+        RoomAccessState::Error(_) => NOT_FOUND_PAGE_TITLE.to_string(),
+    }
+}
+
+fn membership_badge_copy(can_manage_members: bool) -> &'static str {
+    if can_manage_members {
+        "Admin"
+    } else {
+        "Joined"
+    }
+}
+
+fn stream_badge_copy(connected: bool) -> &'static str {
+    if connected {
+        "Live stream open"
+    } else {
+        "Live stream reconnecting"
+    }
+}
+
+fn reset_room_page_state(
+    room: RwSignal<Option<Room>>,
+    roster_members: RwSignal<Vec<RoomRosterMember>>,
+    roll_feed: RwSignal<DiceRollFeed>,
+    next_before_id: RwSignal<Option<RoomRollId>>,
+    loading_more: RwSignal<bool>,
+    stream_connected: RwSignal<bool>,
+    live_ready: RwSignal<bool>,
+    stream_error: RwSignal<Option<String>>,
+    roll_error: RwSignal<Option<String>>,
+    action_error: RwSignal<Option<String>>,
+    action_busy_user_id: RwSignal<Option<i64>>,
+    kick_dialog_member: RwSignal<Option<RoomMemberSummary>>,
+) {
+    room.set(None);
+    roster_members.set(Vec::new());
+    roll_feed.set(DiceRollFeed::new());
+    next_before_id.set(None);
+    loading_more.set(false);
+    stream_connected.set(false);
+    live_ready.set(false);
+    stream_error.set(None);
+    roll_error.set(None);
+    action_error.set(None);
+    action_busy_user_id.set(None);
+    kick_dialog_member.set(None);
+}
+
+#[component]
+fn FeedbackMessage(message: String) -> impl IntoView {
+    view! { <p class=style::page_feedback>{message}</p> }
+}
+
+#[component]
+fn RoomStateCard(label: &'static str, title: String, summary: String) -> impl IntoView {
+    view! {
+        <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+            <p class="g-section-label">{label}</p>
+            <h1 class=style::room_title>{title}</h1>
+            <p class=style::room_summary>{summary}</p>
+        </section>
+    }
+}
+
+#[component]
+fn PendingRoomState(
+    viewer: RoomViewerState,
+    #[prop(into)] stream_error: Signal<Option<String>>,
+) -> impl IntoView {
+    let room_id = viewer.room.id.into_inner();
+
+    view! {
+        <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+            <p class="g-section-label">"Waiting for approval"</p>
+            <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
+            <p class=style::room_summary>
+                "Your join request is in. Stay on this page while the room admin approves access."
+            </p>
+            <div class=style::room_header_meta>
+                <span class=style::room_id_badge>{format!("#{room_id}")}</span>
+                <span class=style::room_note_badge>"Pending"</span>
+            </div>
+            {move || {
+                stream_error
+                    .get()
+                    .map(|message| view! { <FeedbackMessage message /> })
+            }}
+        </section>
+    }
+}
+
+#[component]
+fn KickedRoomState(viewer: RoomViewerState) -> impl IntoView {
+    let room_id = viewer.room.id.into_inner();
+
+    view! {
+        <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+            <p class="g-section-label">"Room access revoked"</p>
+            <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
+            <p class=style::room_summary>
+                "You no longer have access to this room. Head back to the rooms board for another table."
+            </p>
+            <div class=style::room_header_meta>
+                <span class=style::room_id_badge>{format!("#{room_id}")}</span>
+                <span class=style::room_note_badge>"Kicked"</span>
+            </div>
+        </section>
+    }
+}
+
+#[component]
+fn RoomEditorPane(
+    editor_state: RwSignal<EditorState>,
+    #[prop(into)] live_ready: Signal<bool>,
+    #[prop(into)] stream_error: Signal<Option<String>>,
+    #[prop(into)] roll_error: Signal<Option<String>>,
+    #[prop(into)] on_roll: Callback<String>,
+) -> impl IntoView {
+    view! {
+        <section class=format!("{} {}", style::room_main, style::hide_on_mobile)>
+            {move || {
+                if !live_ready.get() {
+                    view! {
+                        <section class=format!("g-panel g-panel-strong {}", style::state_card)>
+                            <p class="g-section-label">"Opening stream"</p>
+                            <h2 class=style::state_title>"Loading room state."</h2>
+                        </section>
+                    }
+                        .into_any()
+                } else {
+                    view! {
+                        <>
+                            {move || {
+                                stream_error
+                                    .get()
+                                    .map(|message| view! { <FeedbackMessage message /> })
+                            }}
+                            {move || {
+                                roll_error
+                                    .get()
+                                    .map(|message| view! { <FeedbackMessage message /> })
+                            }}
+                            <div class=style::room_inline_editor>
+                                <RollEditor
+                                    state=editor_state
+                                    on_roll
+                                    expression_input_id="room-editor-expression-input".to_string()
+                                />
+                            </div>
+                        </>
+                    }
+                        .into_any()
+                }
+            }}
+        </section>
+    }
+}
+
+#[component]
+fn RoomSidebar(
+    viewer: RoomViewerState,
+    room: Room,
+    #[prop(into)] roll_feed: Signal<DiceRollFeed>,
+    #[prop(into)] loading_more: Signal<bool>,
+    #[prop(into)] stream_connected: Signal<bool>,
+    #[prop(into)] roster_members: Signal<Vec<RoomRosterMember>>,
+    #[prop(into)] action_busy_user_id: Signal<Option<i64>>,
+    #[prop(into)] action_error: Signal<Option<String>>,
+    #[prop(into)] load_older_rolls: Callback<()>,
+    #[prop(into)] on_allow_member: Callback<UserId>,
+    #[prop(into)] on_request_kick: Callback<UserId>,
+) -> impl IntoView {
+    view! {
+        <aside class=style::room_rail>
+            <section class=format!("g-panel g-panel-strong {}", style::room_header)>
+                <div class=style::room_header_top>
+                    <p class="g-section-label">"Table ledger"</p>
+                    <h2 class=style::room_title>{room.name.clone()}</h2>
+                    <p class=style::room_summary>"Shared room with a live roll feed."</p>
+                </div>
+
+                <div class=style::room_header_meta>
+                    <span class=style::room_note_badge>
+                        {membership_badge_copy(viewer.can_manage_members)}
+                    </span>
+                    <span
+                        class=style::stream_badge
+                        data-connected=move || if stream_connected.get() { "true" } else { "false" }
+                    >
+                        {move || stream_badge_copy(stream_connected.get())}
+                    </span>
+                </div>
+            </section>
+
+            <RollFeed feed=roll_feed loading_more load_older_rolls />
+
+            <Show when=move || viewer.can_manage_members>
+                <AddRoomMember room_id=room.id />
+            </Show>
+
+            <ActiveUserFeed
+                roster_members
+                connected=stream_connected
+                can_manage_members=viewer.can_manage_members
+                busy_user_id=action_busy_user_id
+                action_error
+                on_allow=on_allow_member
+                on_request_kick
+            />
+        </aside>
+    }
+}
+
+#[component]
+fn ActiveRoomLayout(
+    viewer: RoomViewerState,
+    room: Room,
+    editor_state: RwSignal<EditorState>,
+    #[prop(into)] roster_members: Signal<Vec<RoomRosterMember>>,
+    #[prop(into)] roll_feed: Signal<DiceRollFeed>,
+    #[prop(into)] loading_more: Signal<bool>,
+    #[prop(into)] stream_connected: Signal<bool>,
+    #[prop(into)] live_ready: Signal<bool>,
+    #[prop(into)] stream_error: Signal<Option<String>>,
+    #[prop(into)] roll_error: Signal<Option<String>>,
+    #[prop(into)] action_error: Signal<Option<String>>,
+    #[prop(into)] action_busy_user_id: Signal<Option<i64>>,
+    #[prop(into)] load_older_rolls: Callback<()>,
+    #[prop(into)] on_roll: Callback<String>,
+    #[prop(into)] on_allow_member: Callback<UserId>,
+    #[prop(into)] on_request_kick: Callback<UserId>,
+) -> impl IntoView {
+    view! {
+        <div class=format!("g-page-shell-split {}", style::room_layout)>
+            <RoomEditorPane
+                editor_state
+                live_ready
+                stream_error
+                roll_error
+                on_roll
+            />
+            <RoomSidebar
+                viewer
+                room
+                roll_feed
+                loading_more
+                stream_connected
+                roster_members
+                action_busy_user_id
+                action_error
+                load_older_rolls
+                on_allow_member
+                on_request_kick
+            />
+        </div>
+    }
+}
+
+#[component]
+fn KickMemberDialog(
+    #[prop(into)] kick_dialog_member: Signal<Option<RoomMemberSummary>>,
+    #[prop(into)] on_cancel_kick: Callback<()>,
+    #[prop(into)] on_confirm_kick: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <Dialog
+            open=move || kick_dialog_member.get().is_some()
+            label="Member controls"
+            title="Confirm kick".to_string()
+            summary="Kicked users lose access immediately and stay visible in the kicked list so they can be reinstated later."
+                .to_string()
+            on_close=on_cancel_kick
+        >
+            <p class=style::room_summary>
+                {move || {
+                    kick_dialog_member
+                        .get()
+                        .map(|member| {
+                            format!(
+                                "{} will lose access to the room immediately.",
+                                member.username.as_str(),
+                            )
+                        })
+                        .unwrap_or_default()
+                }}
+            </p>
+            <div class=style::dialog_actions>
+                <button
+                    class="g-button-ghost"
+                    type="button"
+                    on:click=move |_| on_cancel_kick.run(())
+                >
+                    "Cancel"
+                </button>
+                <button
+                    class="g-button-action"
+                    type="button"
+                    on:click=move |_| on_confirm_kick.run(())
+                >
+                    "Confirm kick"
+                </button>
+            </div>
+        </Dialog>
+    }
+}
+
 fn room_page_content(
     access_state: Signal<RoomAccessState>,
     room: Signal<Option<Room>>,
@@ -83,7 +393,7 @@ fn room_page_content(
                 <section class=format!("g-panel g-panel-strong {}", style::room_shell)>
                     <div class=style::hide_on_mobile>
                         <div class="g-page-meta">
-                            <a class="g-button-utility {}" href="/rooms">
+                            <a class="g-button-utility" href="/rooms">
                                 "Back to rooms"
                             </a>
                         </div>
@@ -92,201 +402,55 @@ fn room_page_content(
                     {move || match access_state.get() {
                         RoomAccessState::Loading => {
                             view! {
-                                <section class=format!(
-                                    "g-panel g-panel-strong {}",
-                                    style::state_card,
-                                )>
-                                    <p class="g-section-label">"Room access"</p>
-                                    <h1 class=style::room_title>"Loading room..."</h1>
-                                    <p class=style::room_summary>
-                                        "Checking your access and opening the live room stream."
-                                    </p>
-                                </section>
+                                <RoomStateCard
+                                    label="Room access"
+                                    title="Loading room...".to_string()
+                                    summary="Checking your access and opening the live room stream."
+                                        .to_string()
+                                />
                             }
                                 .into_any()
                         }
                         RoomAccessState::Error(message) => {
                             view! {
-                                <section class=format!(
-                                    "g-panel g-panel-strong {}",
-                                    style::state_card,
-                                )>
-                                    <p class="g-section-label">"Room lookup"</p>
-                                    <h1 class=style::room_title>"Room unavailable."</h1>
-                                    <p class=style::room_summary>{message}</p>
-                                </section>
+                                <RoomStateCard
+                                    label="Room lookup"
+                                    title="Room unavailable.".to_string()
+                                    summary=message
+                                />
                             }
                                 .into_any()
                         }
                         RoomAccessState::Ready(viewer) => {
                             match viewer.viewer_status {
                                 RoomViewerStatus::Pending => {
-                                    view! {
-                                        <section class=format!(
-                                            "g-panel g-panel-strong {}",
-                                            style::state_card,
-                                        )>
-                                            <p class="g-section-label">"Waiting for approval"</p>
-                                            <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
-                                            <p class=style::room_summary>
-                                                "Your join request is in. Stay on this page while the room admin approves access."
-                                            </p>
-                                            <div class=style::room_header_meta>
-                                                <span class=style::room_id_badge>
-                                                    {format!("#{}", viewer.room.id.into_inner())}
-                                                </span>
-                                                <span class=style::room_note_badge>"Pending"</span>
-                                            </div>
-                                            {move || {
-                                                stream_error
-                                                    .get()
-                                                    .map(|message| {
-                                                        view! { <p class=style::page_feedback>{message}</p> }
-                                                    })
-                                            }}
-                                        </section>
-                                    }
-                                        .into_any()
+                                    view! { <PendingRoomState viewer stream_error /> }.into_any()
                                 }
                                 RoomViewerStatus::Kicked => {
-                                    view! {
-                                        <section class=format!(
-                                            "g-panel g-panel-strong {}",
-                                            style::state_card,
-                                        )>
-                                            <p class="g-section-label">"Room access revoked"</p>
-                                            <h1 class=style::room_title>{viewer.room.name.clone()}</h1>
-                                            <p class=style::room_summary>
-                                                "You no longer have access to this room. Head back to the rooms board for another table."
-                                            </p>
-                                            <div class=style::room_header_meta>
-                                                <span class=style::room_id_badge>
-                                                    {format!("#{}", viewer.room.id.into_inner())}
-                                                </span>
-                                                <span class=style::room_note_badge>"Kicked"</span>
-                                            </div>
-                                        </section>
-                                    }
-                                        .into_any()
+                                    view! { <KickedRoomState viewer /> }.into_any()
                                 }
                                 RoomViewerStatus::Creator | RoomViewerStatus::Joined => {
-                                    let room = room.get().unwrap_or(viewer.room.clone());
+                                    let active_room = room.get().unwrap_or(viewer.room.clone());
 
                                     view! {
-                                        <>
-                                            <div class=format!(
-                                                "g-page-shell-split {}",
-                                                style::room_layout,
-                                            )>
-                                                <section class=format!(
-                                                    "{} {}",
-                                                    style::room_main,
-                                                    style::hide_on_mobile,
-                                                )>
-                                                    {move || {
-                                                        if !live_ready.get() {
-                                                            view! {
-                                                                <section class=format!(
-                                                                    "g-panel g-panel-strong {}",
-                                                                    style::state_card,
-                                                                )>
-                                                                    <p class="g-section-label">"Opening stream"</p>
-                                                                    <h2 class=style::state_title>"Loading room state."</h2>
-
-                                                                </section>
-                                                            }
-                                                                .into_any()
-                                                        } else {
-                                                            view! {
-                                                                <>
-                                                                    {move || {
-                                                                        stream_error
-                                                                            .get()
-                                                                            .map(|message| {
-                                                                                view! { <p class=style::page_feedback>{message}</p> }
-                                                                            })
-                                                                    }}
-                                                                    {move || {
-                                                                        roll_error
-                                                                            .get()
-                                                                            .map(|message| {
-                                                                                view! { <p class=style::page_feedback>{message}</p> }
-                                                                            })
-                                                                    }} <div class=style::room_inline_editor>
-                                                                        <RollEditor
-                                                                            state=editor_state
-                                                                            on_roll=on_roll
-                                                                            expression_input_id="room-editor-expression-input"
-                                                                                .to_string()
-                                                                        />
-                                                                    </div>
-                                                                </>
-                                                            }
-                                                                .into_any()
-                                                        }
-                                                    }}
-                                                </section>
-
-                                                <aside class=style::room_rail>
-                                                    <section class=format!(
-                                                        "g-panel g-panel-strong {}",
-                                                        style::room_header,
-                                                    )>
-                                                        <div class=style::room_header_top>
-                                                            <p class="g-section-label">"Table ledger"</p>
-                                                            <h2 class=style::room_title>{room.name.clone()}</h2>
-                                                            <p class=style::room_summary>
-                                                                "Shared room with a live roll feed."
-                                                            </p>
-                                                        </div>
-
-                                                        <div class=style::room_header_meta>
-                                                            <span class=style::room_note_badge>
-                                                                {if viewer.can_manage_members {
-                                                                    "Admin".to_string()
-                                                                } else {
-                                                                    "Joined".to_string()
-                                                                }}
-                                                            </span>
-                                                            <span
-                                                                class=style::stream_badge
-                                                                data-connected=move || {
-                                                                    if stream_connected.get() { "true" } else { "false" }
-                                                                }
-                                                            >
-                                                                {move || {
-                                                                    if stream_connected.get() {
-                                                                        "Live stream open".to_string()
-                                                                    } else {
-                                                                        "Live stream reconnecting".to_string()
-                                                                    }
-                                                                }}
-                                                            </span>
-                                                        </div>
-                                                    </section>
-
-                                                    <RollFeed
-                                                        feed=roll_feed
-                                                        loading_more=loading_more
-                                                        load_older_rolls=load_older_rolls
-                                                    />
-
-                                                    <Show when=move || viewer.can_manage_members>
-                                                        <AddRoomMember room_id=room.id />
-                                                    </Show>
-
-                                                    <ActiveUserFeed
-                                                        roster_members=roster_members
-                                                        connected=stream_connected
-                                                        can_manage_members=viewer.can_manage_members
-                                                        busy_user_id=action_busy_user_id
-                                                        action_error=action_error
-                                                        on_allow=on_allow_member
-                                                        on_request_kick=on_request_kick
-                                                    />
-                                                </aside>
-                                            </div>
-                                        </>
+                                        <ActiveRoomLayout
+                                            viewer
+                                            room=active_room
+                                            editor_state
+                                            roster_members
+                                            roll_feed
+                                            loading_more
+                                            stream_connected
+                                            live_ready
+                                            stream_error
+                                            roll_error
+                                            action_error
+                                            action_busy_user_id
+                                            load_older_rolls
+                                            on_roll
+                                            on_allow_member
+                                            on_request_kick
+                                        />
                                     }
                                         .into_any()
                                 }
@@ -295,45 +459,7 @@ fn room_page_content(
                     }}
                 </section>
 
-                <Dialog
-                    open=move || kick_dialog_member.get().is_some()
-                    label="Member controls"
-                    title="Confirm kick".to_string()
-                    summary="Kicked users lose access immediately and stay visible in the kicked list so they can be reinstated later."
-                        .to_string()
-                    on_close=on_cancel_kick
-                >
-                    <p class=style::room_summary>
-                        {move || {
-                            kick_dialog_member
-                                .get()
-                                .map(|member| {
-                                    format!(
-                                        "{} will lose access to the room immediately.",
-                                        member.username.as_str(),
-                                    )
-                                })
-                                .unwrap_or_default()
-                        }}
-                    </p>
-                    <div class=style::dialog_actions>
-                        <button
-                            class="g-button-ghost"
-                            type="button"
-                            on:click=move |_| on_cancel_kick.run(())
-                        >
-                            "Cancel"
-                        </button>
-                        <button
-                            class="g-button-action"
-                            type="button"
-                            on:click=move |_| on_confirm_kick.run(())
-                        >
-                            "Confirm kick"
-                        </button>
-                    </div>
-                </Dialog>
-
+                <KickMemberDialog kick_dialog_member on_cancel_kick on_confirm_kick />
             </section>
             <Show when=move || {
                 matches!(
@@ -388,31 +514,27 @@ pub fn RoomPage() -> impl IntoView {
     let subscription_target = RwSignal::new(RoomSubscriptionTarget::None);
 
     Effect::new(move |_| {
-        let title = match access_state.get() {
-            RoomAccessState::Loading => ROOMS_PAGE_TITLE.to_string(),
-            RoomAccessState::Ready(viewer_state) => viewer_state.room.name,
-            RoomAccessState::Error(_) => NOT_FOUND_PAGE_TITLE.to_string(),
-        };
-
-        page_title.set(title);
+        page_title.set(page_title_for_access_state(access_state.get()));
     });
 
     Effect::new(move |_| {
         let raw_room_id = params.get().get("roomId").unwrap_or_default();
 
         current_room_id.set(None);
-        room.set(None);
-        roster_members.set(Vec::new());
-        roll_feed.set(DiceRollFeed::new());
-        next_before_id.set(None);
-        loading_more.set(false);
-        stream_connected.set(false);
-        live_ready.set(false);
-        stream_error.set(None);
-        roll_error.set(None);
-        action_error.set(None);
-        action_busy_user_id.set(None);
-        kick_dialog_member.set(None);
+        reset_room_page_state(
+            room,
+            roster_members,
+            roll_feed,
+            next_before_id,
+            loading_more,
+            stream_connected,
+            live_ready,
+            stream_error,
+            roll_error,
+            action_error,
+            action_busy_user_id,
+            kick_dialog_member,
+        );
 
         let trimmed_room_id = raw_room_id.trim().to_string();
         if trimmed_room_id.is_empty() {

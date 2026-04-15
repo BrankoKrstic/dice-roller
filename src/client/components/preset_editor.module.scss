@@ -49,7 +49,12 @@
   color: var(--ink-soft);
 }
 
-.preset-feedback,
+.preset-feedback {
+  margin: 0;
+  color: var(--danger);
+  line-height: 1.45;
+}
+
 .dialog-feedback {
   margin: 0;
   color: var(--danger);
@@ -73,9 +78,7 @@
   border-radius: 999px;
 }
 
-.preset-card,
-.preset-empty,
-.preset-hint-card {
+.preset-card {
   min-width: min(16rem, 100%);
 }
 
@@ -121,7 +124,17 @@
   min-height: var(--control-height-compact);
 }
 
-.preset-empty,
+.preset-empty {
+  display: grid;
+  gap: 0.4rem;
+  flex: 0 0 min(18rem, calc(100vw - 4rem));
+  padding: 0.95rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-muted) 92%, transparent);
+  min-width: min(16rem, 100%);
+}
+
 .preset-hint-card {
   display: grid;
   gap: 0.4rem;
@@ -130,6 +143,7 @@
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--panel-muted) 92%, transparent);
+  min-width: min(16rem, 100%);
 }
 
 .preset-empty-title {
@@ -176,7 +190,10 @@
     align-items: start;
   }
 
-  .preset-meta,
+  .preset-meta {
+    justify-content: flex-start;
+  }
+
   .dialog-actions {
     justify-content: flex-start;
   }
@@ -217,6 +234,7 @@
   .preset-editor-footer {
     grid-template-columns: 1fr;
   }
+
   .preset-editor-button-wrap {
     grid-template-columns: 1fr;
   }

@@ -1,3 +1,8 @@
+.roll-editor-stack {
+  display: grid;
+  gap: 1rem;
+}
+
 .roll-editor {
   display: grid;
   gap: 1rem;
@@ -209,7 +214,12 @@
     gap: 0.45rem;
   }
 
-  .quick-actions :global(.g-button-mode),
+  .quick-actions :global(.g-button-mode) {
+    min-height: 2.05rem;
+    padding: 0 0.72rem;
+    font-size: 0.84rem;
+  }
+
   .quick-actions :global(.g-button-utility) {
     min-height: 2.05rem;
     padding: 0 0.72rem;

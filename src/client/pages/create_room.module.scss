@@ -1,6 +1,4 @@
-.create-room-page,
-.create-room-layout,
-.hero-meta {
+.create-room-page {
   display: grid;
 }
 
@@ -9,12 +7,12 @@
 }
 
 .create-room-layout {
+  display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
   gap: var(--grid-gap);
 }
 
-.hero-card,
-.form-card {
+.hero-card {
   gap: 0.95rem;
 }
 
@@ -26,6 +24,7 @@
 }
 
 .hero-meta {
+  display: grid;
   margin: 0;
   gap: 0.75rem;
 }
@@ -53,6 +52,7 @@
 }
 
 .form-card {
+  gap: 0.95rem;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--accent-soft) 75%, transparent), transparent 10rem),
     color-mix(in srgb, var(--panel) 94%, transparent);

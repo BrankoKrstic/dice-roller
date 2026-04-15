@@ -1,8 +1,4 @@
-.presence-card,
-.presence-header,
-.presence-list,
-.presence-identity,
-.presence-actions {
+.presence-card {
   display: grid;
 }
 
@@ -11,8 +7,8 @@
   padding: clamp(1rem, 2vw, 1.2rem);
 }
 
-.presence-header,
-.presence-identity {
+.presence-header {
+  display: grid;
   gap: 0.35rem;
 }
 
@@ -24,15 +20,20 @@
   letter-spacing: -0.03em;
 }
 
-.presence-summary,
-.presence-empty,
-.presence-feedback {
+.presence-summary {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.presence-empty {
   margin: 0;
   color: var(--ink-muted);
   line-height: 1.55;
 }
 
 .presence-feedback {
+  margin: 0;
   padding: 0.8rem 0.9rem;
   border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
   border-radius: var(--radius-md);
@@ -47,6 +48,7 @@
 }
 
 .presence-list {
+  display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -129,6 +131,11 @@
   background: color-mix(in srgb, var(--paper-strong) 88%, var(--panel-muted) 12%);
 }
 
+.presence-identity {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .presence-name {
   font-size: 0.98rem;
 }
@@ -156,6 +163,7 @@
 }
 
 .presence-actions {
+  display: grid;
   gap: 0.55rem;
   align-content: end;
   justify-items: end;

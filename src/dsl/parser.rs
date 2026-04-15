@@ -763,11 +763,9 @@ mod tests {
     #[test]
     fn rejects_adv_for_non_d20() {
         let error = Parser::new("d6adv").parse().expect_err("parse should fail");
-        assert!(
-            error
-                .to_string()
-                .contains("Adv and dis modifiers can only be used with d20")
-        );
+        assert!(error
+            .to_string()
+            .contains("Adv and dis modifiers can only be used with d20"));
     }
 
     #[test]
@@ -775,11 +773,9 @@ mod tests {
         let error = Parser::new("2d20adv")
             .parse()
             .expect_err("parse should fail");
-        assert!(
-            error
-                .to_string()
-                .contains("adv/dis are only valid on single-die rolls")
-        );
+        assert!(error
+            .to_string()
+            .contains("adv/dis are only valid on single-die rolls"));
     }
 
     #[test]
@@ -801,10 +797,8 @@ mod tests {
     fn rejects_unique_when_not_enough_outcomes() {
         let error = Parser::new("4dFu").parse().expect_err("parse should fail");
 
-        assert!(
-            error
-                .to_string()
-                .contains("More dice then there are possible unique result")
-        );
+        assert!(error
+            .to_string()
+            .contains("More dice then there are possible unique result"));
     }
 }

@@ -30,6 +30,220 @@ fn save_disabled(presets_len: usize, saving: bool) -> bool {
     saving || presets_len >= MAX_PRESETS
 }
 
+fn reset_for_signed_out(
+    presets: RwSignal<Vec<Preset>>,
+    loading: RwSignal<bool>,
+    load_error: RwSignal<Option<String>>,
+    dialog: RwSignal<Option<PendingDialog>>,
+    pending_name: RwSignal<String>,
+    saving: RwSignal<bool>,
+    save_error: RwSignal<Option<String>>,
+    archiving_id: RwSignal<Option<i64>>,
+    archive_error: RwSignal<Option<String>>,
+    last_loaded_user_id: RwSignal<Option<i64>>,
+) {
+    presets.set(Vec::new());
+    loading.set(false);
+    load_error.set(None);
+    dialog.set(None);
+    pending_name.set(String::new());
+    saving.set(false);
+    save_error.set(None);
+    archiving_id.set(None);
+    archive_error.set(None);
+    last_loaded_user_id.set(None);
+}
+
+fn dismiss_dialog_state(
+    dialog: RwSignal<Option<PendingDialog>>,
+    pending_name: RwSignal<String>,
+    save_error: RwSignal<Option<String>>,
+    archive_error: RwSignal<Option<String>>,
+) {
+    dialog.set(None);
+    pending_name.set(String::new());
+    save_error.set(None);
+    archive_error.set(None);
+}
+
+fn save_cta_copy(saving: bool, preset_count: usize) -> &'static str {
+    if saving {
+        "Saving..."
+    } else if preset_count >= MAX_PRESETS {
+        "Preset limit reached"
+    } else {
+        "Save as Preset"
+    }
+}
+
+fn delete_dialog_copy(selected_delete_preset: Option<Preset>) -> String {
+    selected_delete_preset
+        .map(|preset| format!("Delete \"{}\" from your presets?", preset.name))
+        .unwrap_or_else(|| "Delete this preset?".to_string())
+}
+
+#[component]
+fn PresetCard(
+    preset: Preset,
+    archiving_id: RwSignal<Option<i64>>,
+    archive_error: RwSignal<Option<String>>,
+    dialog: RwSignal<Option<PendingDialog>>,
+    #[prop(into)] on_select: Callback<String>,
+) -> impl IntoView {
+    let apply_expr = preset.expr.clone();
+    let delete_id = preset.id.0;
+
+    view! {
+        <article class=style::preset_card>
+            <p class=style::preset_launch>
+                <span class=style::preset_card_title>{preset.name.clone()}</span>
+                <code class=style::preset_card_code>{preset.expr.clone()}</code>
+            </p>
+            <div class=style::preset_editor_button_wrap>
+                <button
+                    class=format!("g-button-utility {}", style::preset_archive)
+                    type="button"
+                    on:click=move |_| on_select.run(apply_expr.clone())
+                >
+                    "Load"
+                </button>
+
+                <button
+                    class=format!("g-button-utility {}", style::preset_archive)
+                    type="button"
+                    prop:disabled=move || archiving_id.get() == Some(delete_id)
+                    on:click=move |_| {
+                        archive_error.set(None);
+                        dialog.set(Some(PendingDialog::Delete(delete_id)));
+                    }
+                >
+                    {move || {
+                        if archiving_id.get() == Some(delete_id) {
+                            "Deleting..."
+                        } else {
+                            "Delete"
+                        }
+                    }}
+                </button>
+            </div>
+        </article>
+    }
+}
+
+#[component]
+fn SavePresetDialog(
+    #[prop(into)] open: Signal<bool>,
+    #[prop(into)] expression: Signal<String>,
+    pending_name: RwSignal<String>,
+    save_error: RwSignal<Option<String>>,
+    #[prop(into)] saving: Signal<bool>,
+    #[prop(into)] preset_count: Signal<usize>,
+    #[prop(into)] on_close: Callback<()>,
+    #[prop(into)] on_submit: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <Dialog
+            open
+            title="Save preset".to_string()
+            label="Preset controls"
+            summary="Name this expression so it can be dropped back into the editor in one click."
+                .to_string()
+            on_close
+        >
+            <label class="g-field-label" for="preset-name-input">
+                "Preset name"
+            </label>
+            <input
+                id="preset-name-input"
+                class="g-text-input"
+                type="text"
+                prop:value=move || pending_name.get()
+                on:input=move |event| {
+                    save_error.set(None);
+                    pending_name.set(event_target_value(&event));
+                }
+                maxlength="48"
+                placeholder="Sneak Attack"
+            />
+            <div class=style::dialog_expression_preview>
+                <span class="g-field-label">"Current expression"</span>
+                <code class=style::dialog_expression_code>{move || expression.get()}</code>
+            </div>
+            {move || {
+                save_error
+                    .get()
+                    .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
+            }}
+            <div class=style::dialog_actions>
+                <button
+                    class="g-button-ghost"
+                    type="button"
+                    on:click=move |_| on_close.run(())
+                >
+                    "Cancel"
+                </button>
+                <button
+                    class="g-button-action"
+                    type="button"
+                    prop:disabled=move || {
+                        saving.get() || pending_name.get().trim().is_empty()
+                            || preset_count.get() >= MAX_PRESETS
+                    }
+                    on:click=move |_| on_submit.run(())
+                >
+                    {move || if saving.get() { "Saving..." } else { "Save preset" }}
+                </button>
+            </div>
+        </Dialog>
+    }
+}
+
+#[component]
+fn DeletePresetDialog(
+    #[prop(into)] open: Signal<bool>,
+    selected_delete_preset: Signal<Option<Preset>>,
+    archive_error: RwSignal<Option<String>>,
+    #[prop(into)] archiving: Signal<bool>,
+    #[prop(into)] on_close: Callback<()>,
+    #[prop(into)] on_confirm: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <Dialog
+            open
+            title="Delete preset".to_string()
+            label="Preset controls"
+            summary="Preset will be deleted from the quick access options".to_string()
+            on_close
+        >
+            <p class=style::dialog_copy>
+                {move || delete_dialog_copy(selected_delete_preset.get())}
+            </p>
+            {move || {
+                archive_error
+                    .get()
+                    .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
+            }}
+            <div class=style::dialog_actions>
+                <button
+                    class="g-button-ghost"
+                    type="button"
+                    on:click=move |_| on_close.run(())
+                >
+                    "Keep preset"
+                </button>
+                <button
+                    class=format!("g-button-utility {}", style::dialog_danger)
+                    type="button"
+                    prop:disabled=move || archiving.get()
+                    on:click=move |_| on_confirm.run(())
+                >
+                    {move || if archiving.get() { "Deleting..." } else { "Delete preset" }}
+                </button>
+            </div>
+        </Dialog>
+    }
+}
+
 async fn list_presets_request() -> Result<Vec<Preset>, String> {
     let client = reqwest::Client::new();
     let response = client
@@ -107,16 +321,18 @@ pub fn PresetEditor(
         }
 
         let Some(user) = auth_user else {
-            presets.set(Vec::new());
-            loading.set(false);
-            load_error.set(None);
-            dialog.set(None);
-            pending_name.set(String::new());
-            saving.set(false);
-            save_error.set(None);
-            archiving_id.set(None);
-            archive_error.set(None);
-            last_loaded_user_id.set(None);
+            reset_for_signed_out(
+                presets,
+                loading,
+                load_error,
+                dialog,
+                pending_name,
+                saving,
+                save_error,
+                archiving_id,
+                archive_error,
+                last_loaded_user_id,
+            );
             return;
         };
 
@@ -159,10 +375,7 @@ pub fn PresetEditor(
     });
 
     let dismiss_dialog = Callback::new(move |_| {
-        dialog.set(None);
-        save_error.set(None);
-        archive_error.set(None);
-        pending_name.set(String::new());
+        dismiss_dialog_state(dialog, pending_name, save_error, archive_error);
     });
 
     let auth_for_save = auth.clone();
@@ -272,248 +485,108 @@ pub fn PresetEditor(
             if auth_for_view.loading.get() || auth_for_view.user.get().is_none() {
                 return None;
             }
-            Some(
-
-                view! {
-                    <section class=style::preset_section>
-                        <div class=style::preset_header>
-                            <div class=style::preset_heading>
-                                <p class="g-section-label">"Presets"</p>
-                                <h2 class=style::preset_title>"Your saved rolls"</h2>
-                                <p class=style::preset_summary>
-                                    "Save your preset rolls here for easy access"
-                                </p>
-                            </div>
-
-                            <div class=style::preset_meta>
-                                <span class=style::preset_count>
-                                    {move || format!("{} / {}", preset_count.get(), MAX_PRESETS)}
-                                </span>
-
-                            </div>
-                        </div>
-
-                        {move || {
-                            load_error
-                                .get()
-                                .map(|message| {
-                                    view! { <p class=style::preset_feedback>{message}</p> }
-                                })
-                        }}
-
-                        <div class=style::preset_rail>
-                            {move || {
-                                if loading.get() {
-                                    view! {
-                                        <p class=format!(
-                                            "g-result-hint {}",
-                                            style::preset_hint_card,
-                                        )>"Loading your saved presets..."</p>
-                                    }
-                                        .into_any()
-                                } else if presets.get().is_empty() {
-                                    view! {
-                                        <div class=style::preset_empty>
-                                            <span class=style::preset_empty_title>
-                                                "No presets saved yet."
-                                            </span>
-                                            <p class="g-result-hint">"Saved rolls will appear here."</p>
-                                        </div>
-                                    }
-                                        .into_any()
-                                } else {
-                                    presets
-                                        .get()
-                                        .into_iter()
-                                        .map(|preset| {
-                                            let apply_expr = preset.expr.clone();
-                                            let delete_id = preset.id.0;
-
-                                            view! {
-                                                <article class=style::preset_card>
-                                                    <p class=style::preset_launch>
-                                                        <span class=style::preset_card_title>
-                                                            {preset.name.clone()}
-                                                        </span>
-                                                        <code class=style::preset_card_code>
-                                                            {preset.expr.clone()}
-                                                        </code>
-                                                    </p>
-                                                    <div class=style::preset_editor_button_wrap>
-                                                        <button
-                                                            class=format!("g-button-utility {}", style::preset_archive)
-                                                            type="button"
-                                                            on:click=move |_| on_select.run(apply_expr.clone())
-                                                        >
-                                                            "Load"
-                                                        </button>
-
-                                                        <button
-                                                            class=format!("g-button-utility {}", style::preset_archive)
-                                                            type="button"
-                                                            prop:disabled=move || {
-                                                                archiving_id.get() == Some(delete_id)
-                                                            }
-                                                            on:click=move |_| {
-                                                                archive_error.set(None);
-                                                                dialog.set(Some(PendingDialog::Delete(delete_id)));
-                                                            }
-                                                        >
-                                                            {move || {
-                                                                if archiving_id.get() == Some(delete_id) {
-                                                                    "Deleting..."
-                                                                } else {
-                                                                    "Delete"
-                                                                }
-                                                            }}
-                                                        </button>
-                                                    </div>
-                                                </article>
-                                            }
-                                        })
-                                        .collect_view()
-                                        .into_any()
-                                }
-                            }}
-                        </div>
-                        <div class=style::preset_editor_footer>
-                            <div class=style::preset_editor_preview>
-                                <span class="g-field-label">"Current expression"</span>
-                                <code class=style::preset_editor_preview_code>
-                                    {move || expression.get()}
-                                </code>
-                            </div>
-                            <button
-                                class="g-button-action"
-                                type="button"
-                                prop:disabled=move || save_cta_disabled.get()
-                                on:click=move |_| open_save_dialog.run(())
-                            >
-                                {move || {
-                                    if saving.get() {
-                                        "Saving..."
-                                    } else if preset_count.get() >= MAX_PRESETS {
-                                        "Preset limit reached"
-                                    } else {
-                                        "Save as Preset"
-                                    }
-                                }}
-                            </button>
-
-                        </div>
-                        <Dialog
-                            open=save_dialog_open
-                            title="Save preset".to_string()
-                            label="Preset controls"
-                            summary="Name this expression so it can be dropped back into the editor in one click."
-                                .to_string()
-                            on_close=dismiss_dialog
-                        >
-                            <label class="g-field-label" for="preset-name-input">
-                                "Preset name"
-                            </label>
-                            <input
-                                id="preset-name-input"
-                                class="g-text-input"
-                                type="text"
-                                prop:value=move || pending_name.get()
-                                on:input=move |event| {
-                                    save_error.set(None);
-                                    pending_name.set(event_target_value(&event));
-                                }
-                                maxlength="48"
-                                placeholder="Sneak Attack"
-                            />
-                            <div class=style::dialog_expression_preview>
-                                <span class="g-field-label">"Current expression"</span>
-                                <code class=style::dialog_expression_code>
-                                    {move || expression.get()}
-                                </code>
-                            </div>
-                            {move || {
-                                save_error
-                                    .get()
-                                    .map(|message| {
-                                        view! { <p class=style::dialog_feedback>{message}</p> }
-                                    })
-                            }}
-                            <div class=style::dialog_actions>
-                                <button
-                                    class="g-button-ghost"
-                                    type="button"
-                                    on:click=move |_| dismiss_dialog.run(())
-                                >
-                                    "Cancel"
-                                </button>
-                                <button
-                                    class="g-button-action"
-                                    type="button"
-                                    prop:disabled=move || {
-                                        saving.get() || pending_name.get().trim().is_empty()
-                                            || preset_count.get() >= MAX_PRESETS
-                                    }
-                                    on:click=move |_| submit_save.run(())
-                                >
-                                    {move || if saving.get() { "Saving..." } else { "Save preset" }}
-                                </button>
-                            </div>
-                        </Dialog>
-
-                        <Dialog
-                            open=delete_dialog_open
-                            title="Delete preset".to_string()
-                            label="Preset controls"
-                            summary="Preset will be deleted from the quick access options"
-                                .to_string()
-                            on_close=dismiss_dialog
-                        >
-                            <p class=style::dialog_copy>
-                                {move || {
-                                    selected_delete_preset
-                                        .get()
-                                        .map(|preset| {
-                                            format!(
-                                                "Delete \"{}\" from your presets?",
-                                                preset.name,
-                                            )
-                                        })
-                                        .unwrap_or_else(|| "Delete this preset?".to_string())
-                                }}
+            Some(view! {
+                <section class=style::preset_section>
+                    <div class=style::preset_header>
+                        <div class=style::preset_heading>
+                            <p class="g-section-label">"Presets"</p>
+                            <h2 class=style::preset_title>"Your saved rolls"</h2>
+                            <p class=style::preset_summary>
+                                "Save your preset rolls here for easy access"
                             </p>
-                            {move || {
-                                archive_error
+                        </div>
+
+                        <div class=style::preset_meta>
+                            <span class=style::preset_count>
+                                {move || format!("{} / {}", preset_count.get(), MAX_PRESETS)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {move || {
+                        load_error
+                            .get()
+                            .map(|message| view! { <p class=style::preset_feedback>{message}</p> })
+                    }}
+
+                    <div class=style::preset_rail>
+                        {move || {
+                            if loading.get() {
+                                view! {
+                                    <p class=format!("g-result-hint {}", style::preset_hint_card)>
+                                        "Loading your saved presets..."
+                                    </p>
+                                }
+                                    .into_any()
+                            } else if presets.get().is_empty() {
+                                view! {
+                                    <div class=style::preset_empty>
+                                        <span class=style::preset_empty_title>
+                                            "No presets saved yet."
+                                        </span>
+                                        <p class="g-result-hint">"Saved rolls will appear here."</p>
+                                    </div>
+                                }
+                                    .into_any()
+                            } else {
+                                presets
                                     .get()
-                                    .map(|message| {
-                                        view! { <p class=style::dialog_feedback>{message}</p> }
-                                    })
-                            }}
-                            <div class=style::dialog_actions>
-                                <button
-                                    class="g-button-ghost"
-                                    type="button"
-                                    on:click=move |_| dismiss_dialog.run(())
-                                >
-                                    "Keep preset"
-                                </button>
-                                <button
-                                    class=format!("g-button-utility {}", style::dialog_danger)
-                                    type="button"
-                                    prop:disabled=move || archiving_id.get().is_some()
-                                    on:click=move |_| confirm_archive.run(())
-                                >
-                                    {move || {
-                                        if archiving_id.get().is_some() {
-                                            "Deleting..."
-                                        } else {
-                                            "Delete preset"
+                                    .into_iter()
+                                    .map(|preset| {
+                                        view! {
+                                            <PresetCard
+                                                preset
+                                                archiving_id
+                                                archive_error
+                                                dialog
+                                                on_select
+                                            />
                                         }
-                                    }}
-                                </button>
-                            </div>
-                        </Dialog>
-                    </section>
-                },
-            )
+                                    })
+                                    .collect_view()
+                                    .into_any()
+                            }
+                        }}
+                    </div>
+
+                    <div class=style::preset_editor_footer>
+                        <div class=style::preset_editor_preview>
+                            <span class="g-field-label">"Current expression"</span>
+                            <code class=style::preset_editor_preview_code>
+                                {move || expression.get()}
+                            </code>
+                        </div>
+                        <button
+                            class="g-button-action"
+                            type="button"
+                            prop:disabled=move || save_cta_disabled.get()
+                            on:click=move |_| open_save_dialog.run(())
+                        >
+                            {move || save_cta_copy(saving.get(), preset_count.get())}
+                        </button>
+                    </div>
+
+                    <SavePresetDialog
+                        open=save_dialog_open
+                        expression
+                        pending_name
+                        save_error
+                        saving
+                        preset_count
+                        on_close=dismiss_dialog
+                        on_submit=submit_save
+                    />
+
+                    <DeletePresetDialog
+                        open=delete_dialog_open
+                        selected_delete_preset
+                        archive_error
+                        archiving=Signal::derive(move || archiving_id.get().is_some())
+                        on_close=dismiss_dialog
+                        on_confirm=confirm_archive
+                    />
+                </section>
+            })
         }}
     }
 }

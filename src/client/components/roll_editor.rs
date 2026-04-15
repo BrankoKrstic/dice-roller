@@ -408,25 +408,27 @@ pub fn RollEditor(
         .unwrap_or_else(|| "expression-editor-input".to_string());
 
     view! {
-        <RollEditorPanel state=state expression_input_id=expression_input_id show_heading=true>
-            <a class="g-button-ghost" href="/reference">
-                "Open reference"
-            </a>
-            <button
-                class="g-button-action"
-                type="button"
-                on:click=move |_| {
-                    on_roll.run(state.get().get_expr());
-                }
-            >
-                "Roll to ledger"
-            </button>
-        </RollEditorPanel>
-        <PresetEditor
-            expression=current_expression
-            on_select=Callback::new(move |expr: String| {
-                state.update(|editor| editor.load_expression(&expr));
-            })
-        />
+        <div class=style::roll_editor_stack>
+            <RollEditorPanel state=state expression_input_id=expression_input_id show_heading=true>
+                <a class="g-button-ghost" href="/reference">
+                    "Open reference"
+                </a>
+                <button
+                    class="g-button-action"
+                    type="button"
+                    on:click=move |_| {
+                        on_roll.run(state.get().get_expr());
+                    }
+                >
+                    "Roll to ledger"
+                </button>
+            </RollEditorPanel>
+            <PresetEditor
+                expression=current_expression
+                on_select=Callback::new(move |expr: String| {
+                    state.update(|editor| editor.load_expression(&expr));
+                })
+            />
+        </div>
     }
 }

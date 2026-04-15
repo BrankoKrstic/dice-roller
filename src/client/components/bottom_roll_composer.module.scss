@@ -9,8 +9,14 @@
   pointer-events: none;
 }
 
-.mobile-composer-bar,
-.mobile-composer-feedback,
+.mobile-composer-bar {
+  pointer-events: auto;
+}
+
+.mobile-composer-feedback {
+  pointer-events: auto;
+}
+
 .mobile-expression-trigger {
   pointer-events: auto;
 }

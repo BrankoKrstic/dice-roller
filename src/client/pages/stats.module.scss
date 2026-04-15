@@ -2,7 +2,11 @@
   grid-template-columns: minmax(0, 1.45fr) minmax(17rem, 0.55fr);
 }
 
-.stats-column,
+.stats-column {
+  display: grid;
+  gap: var(--grid-gap);
+}
+
 .stats-rail {
   display: grid;
   gap: var(--grid-gap);

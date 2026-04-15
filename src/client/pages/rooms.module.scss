@@ -10,11 +10,7 @@
     var(--panel-strong);
 }
 
-.launch-header,
-.joined-rooms-header,
-.launch-card,
-.empty-state,
-.room-card {
+.launch-header {
   display: grid;
 }
 
@@ -30,6 +26,7 @@
 }
 
 .launch-card {
+  display: grid;
   gap: 0.8rem;
   padding: clamp(1rem, 2vw, 1.2rem);
   border: 1px solid var(--line);
@@ -45,9 +42,7 @@
   box-shadow: none;
 }
 
-.launch-card-title,
-.room-title,
-.empty-state-title {
+.launch-card-title {
   margin: 0;
   font-family: var(--font-display);
   letter-spacing: -0.03em;
@@ -58,19 +53,24 @@
   line-height: 0.98;
 }
 
-.launch-card-summary,
-.launch-helper,
-.join-helper,
-.empty-state-copy,
-.join-feedback {
+.room-title {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.launch-card-summary {
   margin: 0;
   line-height: 1.58;
 }
 
-.launch-card-summary,
-.launch-helper,
-.join-helper,
-.empty-state-copy {
+.launch-card-summary {
   color: var(--ink-muted);
 }
 
@@ -82,7 +82,10 @@
 }
 
 .launch-helper {
+  margin: 0;
   font-size: 0.92rem;
+  line-height: 1.58;
+  color: var(--ink-muted);
 }
 
 .join-row {
@@ -97,16 +100,24 @@
   align-items: stretch;
 }
 
-.join-action-slot :global(.g-button-action),
+.join-action-slot :global(.g-button-action) {
+  min-width: 9.5rem;
+}
+
 .join-action-slot :global(.g-button-utility) {
   min-width: 9.5rem;
 }
 
 .join-helper {
+  margin: 0;
   font-size: 0.92rem;
+  line-height: 1.58;
+  color: var(--ink-muted);
 }
 
 .join-feedback {
+  margin: 0;
+  line-height: 1.58;
   padding: 0.75rem 0.9rem;
   border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
   border-radius: var(--radius-md);
@@ -119,6 +130,7 @@
 }
 
 .joined-rooms-header {
+  display: grid;
   gap: 0.55rem;
   max-width: 42rem;
 }
@@ -130,6 +142,7 @@
 }
 
 .room-card {
+  display: grid;
   gap: 0.95rem;
   padding: clamp(1rem, 2vw, 1.2rem);
   border: 1px solid var(--line);
@@ -215,6 +228,7 @@
 }
 
 .empty-state {
+  display: grid;
   gap: 0.6rem;
   padding: clamp(1.1rem, 2vw, 1.4rem);
   border: 1px dashed var(--line-strong);
@@ -227,15 +241,27 @@
   line-height: 1;
 }
 
+.empty-state-copy {
+  margin: 0;
+  line-height: 1.58;
+  color: var(--ink-muted);
+}
+
 @media (max-width: 980px) {
-  .launch-grid,
+  .launch-grid {
+    grid-template-columns: 1fr;
+  }
+
   .rooms-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 700px) {
-  .launch-action-row,
+  .launch-action-row {
+    grid-template-columns: 1fr;
+  }
+
   .join-row {
     grid-template-columns: 1fr;
   }
@@ -244,7 +270,10 @@
     width: 100%;
   }
 
-  .join-action-slot :global(.g-button-action),
+  .join-action-slot :global(.g-button-action) {
+    width: 100%;
+  }
+
   .join-action-slot :global(.g-button-utility) {
     width: 100%;
   }

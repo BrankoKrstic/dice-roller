@@ -79,15 +79,20 @@
   color: var(--accent);
 }
 
-.roll-feed-item-expression,
-.roll-feed-item-meta {
+.roll-feed-item-expression {
   margin: 0;
   color: var(--ink-muted);
   font-size: 0.84rem;
 }
 
-.roll-feed-item-expression code,
+.roll-feed-item-expression code {
+  font-family: var(--font-mono);
+}
+
 .roll-feed-item-meta {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.84rem;
   font-family: var(--font-mono);
 }
 

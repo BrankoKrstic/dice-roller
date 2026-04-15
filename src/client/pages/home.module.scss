@@ -6,7 +6,11 @@
   gap: 0.65rem;
 }
 
-.home-column,
+.home-column {
+  display: grid;
+  gap: var(--grid-gap);
+}
+
 .home-rail {
   display: grid;
   gap: var(--grid-gap);
@@ -33,7 +37,10 @@
   text-underline-offset: 0.18em;
 }
 
-.session-list a:hover,
+.session-list a:hover {
+  color: var(--accent);
+}
+
 .session-list a:focus-visible {
   color: var(--accent);
 }

@@ -286,7 +286,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, LexerError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TokenKind, lex};
+    use super::{lex, TokenKind};
 
     #[test]
     fn lexes_basic_expression() {
@@ -383,11 +383,9 @@ mod tests {
     #[test]
     fn rejects_unknown_identifier() {
         let error = lex("1d6foo").expect_err("lex should fail");
-        assert!(
-            error
-                .to_string()
-                .to_lowercase()
-                .contains("unknown identifier")
-        );
+        assert!(error
+            .to_string()
+            .to_lowercase()
+            .contains("unknown identifier"));
     }
 }

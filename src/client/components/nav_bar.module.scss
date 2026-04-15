@@ -219,6 +219,7 @@
   .brand-mark {
     width: 2.8rem;
     height: 2.8rem;
+    flex-shrink: 0;
   }
 
   .brand-text {
@@ -238,8 +239,7 @@
     display: grid;
   }
 
-  .nav-group,
-  .nav-meta {
+  .nav-group {
     display: grid;
   }
 
@@ -247,5 +247,16 @@
   .nav-status,
   .nav-action {
     width: 100%;
+  }
+
+  .nav-meta-item {
+    width: 100%;
+  }
+
+  .nav-status,
+  .nav-action {
+    display: flex;
+    align-self: stretch;
+    justify-content: flex-start;
   }
 }

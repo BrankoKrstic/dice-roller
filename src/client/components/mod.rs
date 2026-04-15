@@ -1,5 +1,6 @@
 pub mod active_user_feed;
 pub mod add_room_member;
+pub mod bottom_roll_composer;
 pub mod dark_mode_toggle;
 pub mod dialog;
 pub mod nav_bar;

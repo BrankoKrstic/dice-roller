@@ -5,7 +5,11 @@ use leptos::prelude::*;
 
 use crate::{
     client::{
-        components::{roll_editor::RollEditor, roll_feed::RollFeed},
+        components::{
+            bottom_roll_composer::BottomRollComposer,
+            roll_editor::{EditorState, RollEditor},
+            roll_feed::RollFeed,
+        },
         context::{auth::use_auth_context, page_title::use_static_page_title},
         utils::roll_feed::{DiceRoll, DiceRollFeed},
     },
@@ -40,6 +44,7 @@ pub(crate) fn HomePage() -> impl IntoView {
     let auth = use_auth_context();
     let feed = RwSignal::new(DiceRollFeed::new());
     let roll_error = RwSignal::new(None::<String>);
+    let editor_state = RwSignal::new(EditorState::default());
 
     let load_older_rolls = || {};
 
@@ -56,38 +61,57 @@ pub(crate) fn HomePage() -> impl IntoView {
         feed.write().add_roll(build_local_roll(expr, result));
     };
     view! {
-        <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
-            <section class=style::home_column>
-                <RollEditor on_roll=process_roll />
-                <Show when=move || roll_error.get().is_some()>
-                    <p class="g-result-hint">{move || roll_error.get().unwrap_or_default()}</p>
-                </Show>
-            </section>
-
-            <aside class=style::home_rail>
-                <section class=format!("g-panel g-panel-strong {}", style::intro_card)>
-                    <p class="g-section-label">"Local ledger"</p>
-                    <h1 class="g-section-title">"Your private bench"</h1>
-                    <p class="g-section-summary">
-                        "Draft a roll, run it in your local ledger, and s ave a preset for later."
-                    </p>
-                    <ul class=style::session_list>
-                        <li>"Rolls immediately append to the activity feed."</li>
-                        <li>
-                            "Visit the "<a href="/reference">"reference page"</a>
-                            " for help with the expression notation."
-                        </li>
-                        <Show when=move || auth.user.get().is_none()>
-                            <li>
-                                <a href="/register">"Create an account"</a>
-                                " to save rolls as presets."
-                            </li>
-                        </Show>
-                    </ul>
+        <>
+            <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
+                <section class=style::home_column>
+                    <div class=style::home_inline_editor>
+                        <RollEditor
+                            state=editor_state
+                            on_roll=process_roll
+                            expression_input_id="home-editor-expression-input".to_string()
+                        />
+                    </div>
+                    <Show when=move || roll_error.get().is_some()>
+                        <p class=format!("g-result-hint {}", style::home_feedback)>
+                            {move || roll_error.get().unwrap_or_default()}
+                        </p>
+                    </Show>
                 </section>
 
-                <RollFeed feed=feed loading_more=false load_older_rolls=load_older_rolls />
-            </aside>
-        </div>
+                <aside class=style::home_rail>
+                    <section class=format!("g-panel g-panel-strong {}", style::intro_card)>
+                        <p class="g-section-label">"Local ledger"</p>
+                        <h1 class="g-section-title">"Your private bench"</h1>
+                        <p class="g-section-summary">
+                            "Draft a roll, run it in your local ledger, and save a preset for later."
+                        </p>
+                        <ul class=style::session_list>
+                            <li>"Rolls immediately append to the activity feed."</li>
+                            <li>
+                                "Visit the "<a href="/reference">"reference page"</a>
+                                " for help with the expression notation."
+                            </li>
+                            <Show when=move || auth.user.get().is_none()>
+                                <li>
+                                    <a href="/register">"Create an account"</a>
+                                    " to save rolls as presets."
+                                </li>
+                            </Show>
+                        </ul>
+                    </section>
+
+                    <RollFeed feed=feed loading_more=false load_older_rolls=load_older_rolls />
+                </aside>
+            </div>
+            <BottomRollComposer
+                state=editor_state
+                expression_input_id="home-mobile-expression-input".to_string()
+                on_roll=process_roll
+                error=move || roll_error.get()
+                dialog_title="Edit roll".to_string()
+                dialog_summary="Adjust the current expression or load a preset, then confirm to return to the ledger."
+                    .to_string()
+            />
+        </>
     }
 }

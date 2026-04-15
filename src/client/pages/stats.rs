@@ -1,13 +1,13 @@
 use leptos::prelude::*;
 
 use crate::{
+    ChanceResult,
     client::{
         components::roll_editor::{
-            current_expression_signal, EditorComponent, EditorExpressionPreview, EditorState,
+            EditorComponent, EditorExpressionPreview, EditorState, current_expression_signal,
         },
         context::page_title::use_static_page_title,
     },
-    ChanceResult,
 };
 
 #[cfg(feature = "hydrate")]
@@ -331,7 +331,10 @@ pub fn StatsPage() -> impl IntoView {
                                 }}
                             </h3>
                             <div class=style::stats_editor_body>
-                                <EditorComponent state=to_hit_editor />
+                                <EditorComponent
+                                    state=to_hit_editor
+                                    expression_input_id="chance-to-hit-expression-input".to_string()
+                                />
                                 <EditorExpressionPreview expression=to_hit_expression />
                             </div>
                         </article>
@@ -340,7 +343,10 @@ pub fn StatsPage() -> impl IntoView {
                             <p class="g-section-label">"Step 2"</p>
                             <h3 class=style::stats_editor_block_title>"Damage roll"</h3>
                             <div class=style::stats_editor_body>
-                                <EditorComponent state=dmg_editor />
+                                <EditorComponent
+                                    state=dmg_editor
+                                    expression_input_id="chance-damage-expression-input".to_string()
+                                />
                                 <EditorExpressionPreview expression=dmg_expression />
                             </div>
                         </article>

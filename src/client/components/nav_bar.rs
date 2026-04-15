@@ -88,18 +88,30 @@ pub fn NavBar() -> impl IntoView {
                                 view! {
                                     <>
                                         <a
-                                            class=style::nav_link
+                                            class=format!(
+                                                "{} {}",
+                                                style::nav_link,
+                                                style::nav_meta_item,
+                                            )
                                             href="/rooms"
                                             on:click=move |_| menu_open.set(false)
                                         >
                                             <span class=style::nav_link_label>"Rooms"</span>
                                             <span class=style::nav_link_hint>"Shared tables"</span>
                                         </a>
-                                        <span class=style::nav_status>
+                                        <span class=format!(
+                                            "{} {}",
+                                            style::nav_status,
+                                            style::nav_meta_item,
+                                        )>
                                             {format!("Signed in as {}", user.username.as_str())}
                                         </span>
                                         <button
-                                            class=format!("g-button-utility {}", style::nav_action)
+                                            class=format!(
+                                                "g-button-utility {} {}",
+                                                style::nav_action,
+                                                style::nav_meta_item,
+                                            )
                                             type="button"
                                             on:click=move |_| {
                                                 menu_open.set(false);
@@ -115,14 +127,22 @@ pub fn NavBar() -> impl IntoView {
                                 view! {
                                     <>
                                         <a
-                                            class=format!("g-button-action {}", style::nav_action)
+                                            class=format!(
+                                                "g-button-action {} {}",
+                                                style::nav_action,
+                                                style::nav_meta_item,
+                                            )
                                             href="/login"
                                             on:click=move |_| menu_open.set(false)
                                         >
                                             <span class=style::nav_link_label>"Login"</span>
                                         </a>
                                         <a
-                                            class=format!("g-button-action {}", style::nav_action)
+                                            class=format!(
+                                                "g-button-action {} {}",
+                                                style::nav_action,
+                                                style::nav_meta_item,
+                                            )
                                             href="/register"
                                             on:click=move |_| menu_open.set(false)
                                         >

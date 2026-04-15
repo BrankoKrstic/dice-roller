@@ -151,6 +151,20 @@
   }
 }
 
+@media (max-width: 760px) {
+  .room-shell {
+    padding-bottom: 7.5rem;
+  }
+
+  .hide-on-mobile {
+    display: none;
+  }
+
+  .room-inline-editor {
+    display: none;
+  }
+}
+
 @media (max-width: 620px) {
   .room-title {
     font-size: clamp(1.8rem, 9vw, 2.8rem);

@@ -4,12 +4,21 @@ use crate::client::context::scroll_lock::use_scroll_lock_context;
 
 stylance::import_style!(style, "dialog.module.scss");
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum DialogPresentation {
+    #[default]
+    Centered,
+    Fullscreen,
+}
+
 #[component]
 pub fn Dialog(
     #[prop(into)] open: Signal<bool>,
     title: String,
     #[prop(optional, into)] label: Option<String>,
     #[prop(optional)] summary: Option<String>,
+    #[prop(optional)] presentation: DialogPresentation,
+    #[prop(optional = true)] show_close_button: bool,
     #[prop(into)] on_close: Callback<()>,
     children: ChildrenFn,
 ) -> impl IntoView {
@@ -65,12 +74,16 @@ pub fn Dialog(
                         <dialog
                             node_ref=dialog_ref
                             class=style::dialog_shell
+                            class=(style::dialog_shell_fullscreen, presentation == DialogPresentation::Fullscreen)
                             aria-labelledby="dialog-title"
                             on:close=move |_| {
                                 close.run(());
                             }
                         >
-                            <div class=format!("g-panel g-panel-strong {}", style::dialog_panel)>
+                            <div
+                                class=format!("g-panel g-panel-strong {}", style::dialog_panel)
+                                class=(style::dialog_panel_fullscreen, presentation == DialogPresentation::Fullscreen)
+                            >
                                 <div class=style::dialog_header>
                                     <div class=style::dialog_heading>
                                         <p class="g-section-label">
@@ -85,17 +98,19 @@ pub fn Dialog(
                                                 view! { <p class="g-section-summary">{summary.clone()}</p> }
                                             })}
                                     </div>
-                                    <button
-                                        class=format!("g-button-ghost {}", style::dialog_close)
-                                        type="button"
-                                        on:click=move |_| {
-                                            if let Some(dialog) = dialog_ref.get() {
-                                                dialog.close();
+                                    <Show when=move || show_close_button>
+                                        <button
+                                            class=format!("g-button-ghost {}", style::dialog_close)
+                                            type="button"
+                                            on:click=move |_| {
+                                                if let Some(dialog) = dialog_ref.get() {
+                                                    dialog.close();
+                                                }
                                             }
-                                        }
-                                    >
-                                        "Close"
-                                    </button>
+                                        >
+                                            "Close"
+                                        </button>
+                                    </Show>
                                 </div>
                                 <div class=style::dialog_body>{children()}</div>
                             </div>

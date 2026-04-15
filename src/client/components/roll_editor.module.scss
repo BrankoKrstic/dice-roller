@@ -169,3 +169,50 @@
     justify-content: flex-start;
   }
 }
+
+@media (max-width: 760px) {
+  .roll-editor-grid {
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(100px, 1fr)
+    );
+    gap: 0.55rem;
+  }
+
+  .die-card {
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.55rem;
+  }
+
+  .die-card-face {
+    min-height: 2.45rem;
+    border-radius: 0.65rem;
+    font-size: 0.92rem;
+  }
+
+  .die-card-controls {
+    grid-template-columns: minmax(1.9rem, 1fr) auto minmax(1.9rem, 1fr);
+    gap: 0.3rem;
+  }
+
+  .die-card-step {
+    min-height: 1.8rem;
+    padding: 0;
+  }
+
+  .die-card-count {
+    font-size: 0.88rem;
+  }
+
+  .quick-actions {
+    gap: 0.45rem;
+  }
+
+  .quick-actions :global(.g-button-mode),
+  .quick-actions :global(.g-button-utility) {
+    min-height: 2.05rem;
+    padding: 0 0.72rem;
+    font-size: 0.84rem;
+  }
+}

@@ -12,6 +12,10 @@
   gap: var(--grid-gap);
 }
 
+.home-feedback {
+  margin: 0;
+}
+
 .session-list {
   margin: 0;
   padding-left: 1rem;
@@ -36,4 +40,14 @@
 
 .session-list li::marker {
   color: var(--accent-copper);
+}
+
+@media (max-width: 760px) {
+  .home-shell {
+    padding-bottom: 7.5rem;
+  }
+
+  .home-inline-editor {
+    display: none;
+  }
 }

@@ -162,6 +162,43 @@ impl RollBuilder {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EditorState {
+    mode: EditorMode,
+    expr: RwSignal<String>,
+    builder: RwSignal<RollBuilder>,
+}
+impl Default for EditorState {
+    fn default() -> Self {
+        Self {
+            mode: EditorMode::default(),
+            expr: RwSignal::new(String::from("2d10 + 1d6 + 5")),
+            builder: RwSignal::new(RollBuilder::new()),
+        }
+    }
+}
+impl EditorState {
+    pub fn get_expr(&self) -> String {
+        match &self.mode {
+            EditorMode::Builder => self.builder.get().to_expr(),
+            EditorMode::Expression => self.expr.get().to_string(),
+        }
+    }
+
+    pub fn load_expression(&mut self, expr: &str) {
+        self.mode = EditorMode::Expression;
+        self.expr.set(expr.to_string());
+    }
+
+    fn show_builder(&mut self) {
+        self.mode = EditorMode::Builder;
+    }
+
+    fn show_expression(&mut self) {
+        self.mode = EditorMode::Expression;
+    }
+}
+
 #[component]
 fn DieCard(
     label: &'static str,
@@ -245,7 +282,6 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
                     class:g-button-mode-active=move || {
                         matches!(builder.get().roll, RollType::Adv)
                     }
-
                     on:click=move |_| builder.write().adv_roll()
                 >
                     d20adv
@@ -255,7 +291,6 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
                     class:g-button-mode-active=move || {
                         matches!(builder.get().roll, RollType::Dis)
                     }
-
                     on:click=move |_| builder.write().dis_roll()
                 >
                     d20dis
@@ -263,21 +298,22 @@ fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
                 <button class="g-button-utility" on:click=move |_| builder.write().clear()>
                     Clear
                 </button>
-
             </div>
         </div>
     }
 }
 
 #[component]
-fn ExpressionEditor(expr: RwSignal<String>) -> impl IntoView {
+fn ExpressionEditor(expr: RwSignal<String>, input_id: String) -> impl IntoView {
+    let label_target = input_id.clone();
+
     view! {
         <div class=style::roll_editor_panel>
-            <label class="g-field-label" for="expression-editor-input">
+            <label class="g-field-label" for=label_target>
                 "Expression"
             </label>
             <input
-                id="expression-editor-input"
+                id=input_id
                 type="text"
                 class=format!("g-text-input {}", style::expression_editor_input)
                 prop:value=move || expr.get()
@@ -287,41 +323,14 @@ fn ExpressionEditor(expr: RwSignal<String>) -> impl IntoView {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct EditorState {
-    mode: EditorMode,
-    expr: RwSignal<String>,
-    builder: RwSignal<RollBuilder>,
-}
-impl Default for EditorState {
-    fn default() -> Self {
-        Self {
-            mode: EditorMode::default(),
-            expr: RwSignal::new(String::from("2d10 + 1d6 + 5")),
-            builder: RwSignal::new(RollBuilder::new()),
-        }
-    }
-}
-impl EditorState {
-    pub fn get_expr(&self) -> String {
-        match &self.mode {
-            EditorMode::Builder => self.builder.get().to_expr(),
-            EditorMode::Expression => self.expr.get().to_string(),
-        }
-    }
-
-    fn load_expression(&mut self, expr: &str) {
-        self.mode = EditorMode::Expression;
-        self.expr.set(expr.to_string());
-    }
-}
-
 #[component]
-pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
+pub fn EditorComponent(state: RwSignal<EditorState>, expression_input_id: String) -> impl IntoView {
     view! {
         <div class="g-roll-editor-mode-switch">
             <button
-                on:click=move |_| { state.write().mode = EditorMode::Builder }
+                on:click=move |_| {
+                    state.update(|editor| editor.show_builder());
+                }
                 class="g-button-mode"
                 class=("g-button-mode-active", move || state.get().mode == EditorMode::Builder)
             >
@@ -330,9 +339,11 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
             <button
                 class="g-button-mode"
                 class=("g-button-mode-active", move || state.get().mode == EditorMode::Expression)
-                on:click=move |_| { state.write().mode = EditorMode::Expression }
+                on:click=move |_| {
+                    state.update(|editor| editor.show_expression());
+                }
             >
-                "Expression Editor"
+                "Expression"
             </button>
 
         </div>
@@ -341,7 +352,13 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
                 if matches!(state.get().mode, EditorMode::Builder) {
                     view! { <BuilderEditor builder=state.get().builder /> }.into_any()
                 } else {
-                    view! { <ExpressionEditor expr=state.get().expr /> }.into_any()
+                    view! {
+                        <ExpressionEditor
+                            expr=state.get().expr
+                            input_id=expression_input_id.clone()
+                        />
+                    }
+                        .into_any()
                 }
             }}
         </div>
@@ -349,38 +366,62 @@ pub fn EditorComponent(state: RwSignal<EditorState>) -> impl IntoView {
 }
 
 #[component]
-pub fn RollEditor(#[prop(into)] on_roll: Callback<String>) -> impl IntoView {
-    let state = RwSignal::new(EditorState::default());
+pub fn RollEditorPanel(
+    state: RwSignal<EditorState>,
+    expression_input_id: String,
+    #[prop(optional)] show_heading: bool,
+    children: ChildrenFn,
+) -> impl IntoView {
     let current_expression = current_expression_signal(state);
 
     view! {
         <section class=style::roll_editor>
-            <div class=style::roll_editor_heading>
-                <p class="g-section-label">"Editor"</p>
-                <h1 class=style::roll_editor_title>"Build a roll"</h1>
-                <p class=style::roll_editor_summary>
-                    "Use the bench to quick-draft a roll, or unlock advanced modifiers in the expression editor."
-                </p>
-            </div>
+            <Show when=move || show_heading>
+                <div class=style::roll_editor_heading>
+                    <p class="g-section-label">"Editor"</p>
+                    <h1 class=style::roll_editor_title>"Build a roll"</h1>
+                    <p class=style::roll_editor_summary>
+                        "Use the bench to quick-draft a roll, or unlock advanced modifiers in the expression editor."
+                    </p>
+                </div>
+            </Show>
 
-            <EditorComponent state=state />
+            <EditorComponent state=state expression_input_id=expression_input_id />
             <div class=style::roll_editor_footer>
                 <EditorExpressionPreview expression=current_expression />
-
-                <div class=style::roll_editor_actions>
-                    <a class="g-button-ghost" href="/reference">
-                        "Open reference"
-                    </a>
-                    <button
-                        class="g-button-action"
-                        type="button"
-                        on:click=move |_| { on_roll.run(state.get().get_expr()) }
-                    >
-                        "Roll to ledger"
-                    </button>
-                </div>
+                <div class=style::roll_editor_actions>{children()}</div>
             </div>
         </section>
+    }
+}
+
+#[component]
+pub fn RollEditor(
+    #[prop(into)] on_roll: Callback<String>,
+    #[prop(optional)] state: Option<RwSignal<EditorState>>,
+    #[prop(optional, into)] expression_input_id: MaybeProp<String>,
+) -> impl IntoView {
+    let state = state.unwrap_or(RwSignal::new(EditorState::default()));
+    let current_expression = current_expression_signal(state);
+    let expression_input_id = expression_input_id
+        .get()
+        .unwrap_or_else(|| "expression-editor-input".to_string());
+
+    view! {
+        <RollEditorPanel state=state expression_input_id=expression_input_id show_heading=true>
+            <a class="g-button-ghost" href="/reference">
+                "Open reference"
+            </a>
+            <button
+                class="g-button-action"
+                type="button"
+                on:click=move |_| {
+                    on_roll.run(state.get().get_expr());
+                }
+            >
+                "Roll to ledger"
+            </button>
+        </RollEditorPanel>
         <PresetEditor
             expression=current_expression
             on_select=Callback::new(move |expr: String| {

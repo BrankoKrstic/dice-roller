@@ -1,0 +1,87 @@
+.mobile-composer-shell {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 35;
+  display: none;
+  justify-content: stretch;
+  padding: 0;
+  pointer-events: none;
+}
+
+.mobile-composer-bar,
+.mobile-composer-feedback,
+.mobile-expression-trigger {
+  pointer-events: auto;
+}
+
+.mobile-composer-feedback {
+  width: 100%;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+  border-radius: 0;
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel-strong));
+  color: color-mix(in srgb, var(--danger) 74%, var(--ink));
+}
+
+.mobile-composer-bar {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding:
+    0.8rem
+    1rem
+    calc(0.8rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  box-shadow: none;
+}
+
+.mobile-expression-trigger {
+  display: grid;
+  gap: 0.22rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-expression-code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.mobile-expression-cta {
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mobile-dialog-body {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (max-width: 760px) {
+  .mobile-composer-shell {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mobile-confirm-button {
+    width: 100%;
+  }
+}

@@ -7,8 +7,9 @@ use crate::{
         components::dialog::Dialog,
         context::page_title::use_static_page_title,
         utils::rooms::{
-            archive_room_request, join_room_request, latest_roll_activity_line, leave_room_request,
-            list_joined_rooms_request, parse_room_id_input, room_route, MAX_ACTIVE_CREATED_ROOMS,
+            MAX_ACTIVE_CREATED_ROOMS, archive_room_request, join_room_request,
+            latest_roll_activity_line, leave_room_request, list_joined_rooms_request,
+            parse_room_id_input, room_route,
         },
     },
     shared::data::room::JoinedRoomSummary,
@@ -27,6 +28,54 @@ enum JoinedRoomsState {
 enum RoomsActionDialog {
     Leave(JoinedRoomSummary),
     Archive(JoinedRoomSummary),
+}
+
+#[derive(Clone)]
+struct RoomsBoardState {
+    join_input: RwSignal<String>,
+    join_error: RwSignal<Option<String>>,
+    joining: RwSignal<bool>,
+    rooms_state: RwSignal<JoinedRoomsState>,
+    action_error: RwSignal<Option<String>>,
+    action_busy_room_id: RwSignal<Option<i64>>,
+    action_dialog: RwSignal<Option<RoomsActionDialog>>,
+}
+
+impl RoomsBoardState {
+    fn new() -> Self {
+        Self {
+            join_input: RwSignal::new(String::new()),
+            join_error: RwSignal::new(None),
+            joining: RwSignal::new(false),
+            rooms_state: RwSignal::new(JoinedRoomsState::Loading),
+            action_error: RwSignal::new(None),
+            action_busy_room_id: RwSignal::new(None),
+            action_dialog: RwSignal::new(None),
+        }
+    }
+
+    fn request_leave(&self, room: JoinedRoomSummary) {
+        self.action_error.set(None);
+        self.action_dialog.set(Some(RoomsActionDialog::Leave(room)));
+    }
+
+    fn request_archive(&self, room: JoinedRoomSummary) {
+        self.action_error.set(None);
+        self.action_dialog
+            .set(Some(RoomsActionDialog::Archive(room)));
+    }
+
+    fn cancel_action(&self) {
+        self.action_dialog.set(None);
+    }
+}
+
+#[derive(Clone)]
+struct RoomsBoardActions {
+    request_leave: Callback<JoinedRoomSummary>,
+    request_archive: Callback<JoinedRoomSummary>,
+    cancel_action: Callback<()>,
+    confirm_action: Callback<()>,
 }
 
 fn active_created_room_count(rooms: &[JoinedRoomSummary]) -> usize {
@@ -157,11 +206,7 @@ fn CreateRoomCard(#[prop(into)] rooms_state: Signal<JoinedRoomsState>) -> impl I
 }
 
 #[component]
-fn JoinRoomCard(
-    join_input: RwSignal<String>,
-    join_error: RwSignal<Option<String>>,
-    #[prop(into)] joining: Signal<bool>,
-) -> impl IntoView {
+fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
     view! {
         <article class=style::launch_card>
             <p class="g-section-label">"Join a table"</p>
@@ -176,10 +221,10 @@ fn JoinRoomCard(
                     type="text"
                     inputmode="numeric"
                     placeholder="42"
-                    prop:value=move || join_input.get()
+                    prop:value=move || board.join_input.get()
                     on:input=move |event| {
-                        join_error.set(None);
-                        join_input.set(event_target_value(&event));
+                        board.join_error.set(None);
+                        board.join_input.set(event_target_value(&event));
                     }
                 />
                 <div class=style::join_action_slot>
@@ -187,15 +232,16 @@ fn JoinRoomCard(
                         id="rooms-join-submit"
                         class="g-button-action"
                         type="submit"
-                        disabled=move || joining.get()
+                        disabled=move || board.joining.get()
                     >
-                        {move || if joining.get() { "Joining..." } else { "Join room" }}
+                        {move || if board.joining.get() { "Joining..." } else { "Join room" }}
                     </button>
                 </div>
             </div>
             <p class=style::join_helper>"Pending users wait there until admitted."</p>
             {move || {
-                join_error
+                board
+                    .join_error
                     .get()
                     .map(|message| view! { <p class=style::join_feedback>{message}</p> })
             }}
@@ -206,13 +252,16 @@ fn JoinRoomCard(
 #[component]
 fn JoinedRoomCard(
     room: JoinedRoomSummary,
-    #[prop(into)] action_busy_room_id: Signal<Option<i64>>,
-    #[prop(into)] on_request_leave: Callback<JoinedRoomSummary>,
-    #[prop(into)] on_request_archive: Callback<JoinedRoomSummary>,
+    board: RoomsBoardState,
+    actions: RoomsBoardActions,
 ) -> impl IntoView {
     let room_id = room.room.id.into_inner();
     let room_target = room_route(room_id);
     let activity_line = latest_roll_activity_line(&room.latest_roll);
+    let archive_board = board.clone();
+    let leave_board = board.clone();
+    let archive_actions = actions.clone();
+    let leave_actions = actions.clone();
 
     view! {
         <article class=style::room_card>
@@ -244,11 +293,11 @@ fn JoinedRoomCard(
                         <button
                             class="g-button-ghost"
                             type="button"
-                            prop:disabled=move || action_busy_room_id.get() == Some(room_id)
+                            prop:disabled=move || archive_board.action_busy_room_id.get() == Some(room_id)
                             on:click={
-                                let on_request_archive = on_request_archive.clone();
+                                let request_archive = archive_actions.request_archive.clone();
                                 let room = room.clone();
-                                move |_| on_request_archive.run(room.clone())
+                                move |_| request_archive.run(room.clone())
                             }
                         >
                             "Delete room"
@@ -260,11 +309,11 @@ fn JoinedRoomCard(
                         <button
                             class="g-button-ghost"
                             type="button"
-                            prop:disabled=move || action_busy_room_id.get() == Some(room_id)
+                            prop:disabled=move || leave_board.action_busy_room_id.get() == Some(room_id)
                             on:click={
-                                let on_request_leave = on_request_leave.clone();
+                                let request_leave = leave_actions.request_leave.clone();
                                 let room = room.clone();
-                                move |_| on_request_leave.run(room.clone())
+                                move |_| request_leave.run(room.clone())
                             }
                         >
                             "Leave room"
@@ -277,19 +326,15 @@ fn JoinedRoomCard(
     }
 }
 
-fn rooms_page_content(
-    rooms_state: Signal<JoinedRoomsState>,
-    join_input: RwSignal<String>,
-    joining: Signal<bool>,
-    join_error: RwSignal<Option<String>>,
-    action_error: Signal<Option<String>>,
-    action_busy_room_id: Signal<Option<i64>>,
-    action_dialog: Signal<Option<RoomsActionDialog>>,
-    on_request_leave: Callback<JoinedRoomSummary>,
-    on_request_archive: Callback<JoinedRoomSummary>,
-    on_cancel_action: Callback<()>,
-    on_confirm_action: Callback<()>,
-) -> impl IntoView {
+fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> impl IntoView {
+    let rooms_board = board.clone();
+    let card_board = board.clone();
+    let card_actions = actions.clone();
+    let dialog_board = board.clone();
+    let dialog_actions = actions.clone();
+    let cancel_actions = actions.clone();
+    let confirm_actions = actions.clone();
+
     view! {
         <section class="g-page g-page-shell">
             <section class=format!("g-panel g-panel-strong {}", style::launch_panel)>
@@ -302,8 +347,8 @@ fn rooms_page_content(
                 </div>
 
                 <div class=style::launch_grid>
-                    <CreateRoomCard rooms_state />
-                    <JoinRoomCard join_input join_error joining />
+                    <CreateRoomCard rooms_state=board.rooms_state />
+                    <JoinRoomCard board=board.clone() />
                 </div>
             </section>
 
@@ -315,12 +360,13 @@ fn rooms_page_content(
                 </div>
 
                 {move || {
-                    action_error
+                    card_board
+                        .action_error
                         .get()
                         .map(|message| view! { <p class=style::join_feedback>{message}</p> })
                 }}
 
-                {move || match rooms_state.get() {
+                {move || match rooms_board.rooms_state.get() {
                     JoinedRoomsState::Loading => {
                         view! {
                             <EmptyState
@@ -331,9 +377,7 @@ fn rooms_page_content(
                             .into_any()
                     }
                     JoinedRoomsState::Error(message) => {
-                        view! {
-                            <EmptyState title="Could not load joined rooms." copy=message />
-                        }
+                        view! { <EmptyState title="Could not load joined rooms." copy=message /> }
                             .into_any()
                     }
                     JoinedRoomsState::Loaded(rooms) => {
@@ -355,9 +399,8 @@ fn rooms_page_content(
                                             view! {
                                                 <JoinedRoomCard
                                                     room
-                                                    action_busy_room_id
-                                                    on_request_leave
-                                                    on_request_archive
+                                                    board=card_board.clone()
+                                                    actions=card_actions.clone()
                                                 />
                                             }
                                         })
@@ -371,14 +414,15 @@ fn rooms_page_content(
             </section>
 
             <Dialog
-                open=move || action_dialog.get().is_some()
+                open=move || dialog_board.action_dialog.get().is_some()
                 label="Room actions"
                 title="Confirm room action".to_string()
-                on_close=on_cancel_action
+                on_close=dialog_actions.cancel_action.clone()
             >
                 <p class=style::join_helper>
                     {move || {
-                        action_dialog
+                        dialog_board
+                            .action_dialog
                             .get()
                             .map(|dialog| dialog.summary_copy())
                             .unwrap_or_default()
@@ -388,17 +432,18 @@ fn rooms_page_content(
                     <button
                         class="g-button-ghost"
                         type="button"
-                        on:click=move |_| on_cancel_action.run(())
+                        on:click=move |_| cancel_actions.cancel_action.run(())
                     >
                         "Cancel"
                     </button>
                     <button
                         class="g-button-action"
                         type="button"
-                        on:click=move |_| on_confirm_action.run(())
+                        on:click=move |_| confirm_actions.confirm_action.run(())
                     >
                         {move || {
-                            action_dialog
+                            dialog_board
+                                .action_dialog
                                 .get()
                                 .map(|dialog| dialog.confirm_label())
                                 .unwrap_or("")
@@ -415,123 +460,121 @@ pub fn RoomsPage() -> impl IntoView {
     use_static_page_title("Rooms");
 
     let navigate = use_navigate();
-    let join_input = RwSignal::new(String::new());
-    let join_error = RwSignal::new(None::<String>);
-    let joining = RwSignal::new(false);
-    let rooms_state = RwSignal::new(JoinedRoomsState::Loading);
-    let action_error = RwSignal::new(None::<String>);
-    let action_busy_room_id = RwSignal::new(None::<i64>);
-    let action_dialog = RwSignal::new(None::<RoomsActionDialog>);
+    let board = RoomsBoardState::new();
 
-    let refresh_rooms = Callback::new(move |_| {
-        rooms_state.set(JoinedRoomsState::Loading);
-        spawn_local(async move {
-            match list_joined_rooms_request().await {
-                Ok(rooms) => rooms_state.set(JoinedRoomsState::Loaded(rooms)),
-                Err(message) => rooms_state.set(JoinedRoomsState::Error(message)),
-            }
-        });
-    });
-
-    Effect::new(move |_| {
-        if !cfg!(feature = "hydrate") {
-            return;
-        }
-
-        refresh_rooms.run(());
-    });
-
-    let on_submit = move |event: SubmitEvent| {
-        event.prevent_default();
-        if joining.get_untracked() {
-            return;
-        }
-
-        let room_id = match parse_room_id_input(&join_input.get_untracked()) {
-            Ok(room_id) => room_id,
-            Err(message) => {
-                join_error.set(Some(message));
-                return;
-            }
-        };
-
-        join_error.set(None);
-        joining.set(true);
-
-        let navigate = navigate.clone();
-        spawn_local(async move {
-            match join_room_request(room_id).await {
-                Ok(_) => navigate(&room_route(room_id), Default::default()),
-                Err(message)
-                    if message.contains("membership is already joined")
-                        || message.contains("membership is already pending")
-                        || message.contains("membership is pending approval") =>
-                {
-                    navigate(&room_route(room_id), Default::default());
+    let refresh_rooms = {
+        let board = board.clone();
+        Callback::new(move |_| {
+            board.rooms_state.set(JoinedRoomsState::Loading);
+            spawn_local(async move {
+                match list_joined_rooms_request().await {
+                    Ok(rooms) => board.rooms_state.set(JoinedRoomsState::Loaded(rooms)),
+                    Err(message) => board.rooms_state.set(JoinedRoomsState::Error(message)),
                 }
-                Err(message) => join_error.set(Some(message)),
-            }
-            joining.set(false);
-        });
+            });
+        })
     };
 
-    let on_request_leave = Callback::new(move |room: JoinedRoomSummary| {
-        action_error.set(None);
-        action_dialog.set(Some(RoomsActionDialog::Leave(room)));
-    });
-
-    let on_request_archive = Callback::new(move |room: JoinedRoomSummary| {
-        action_error.set(None);
-        action_dialog.set(Some(RoomsActionDialog::Archive(room)));
-    });
-
-    let on_cancel_action = Callback::new(move |_| {
-        action_dialog.set(None);
-    });
-
-    let on_confirm_action = Callback::new(move |_| {
-        let Some(dialog) = action_dialog.get_untracked() else {
-            return;
-        };
-
-        let room_id = dialog.room().room.id.into_inner();
-
-        action_error.set(None);
-        action_busy_room_id.set(Some(room_id));
-
-        spawn_local(async move {
-            let result = match dialog {
-                RoomsActionDialog::Leave(_) => leave_room_request(room_id).await.map(|_| ()),
-                RoomsActionDialog::Archive(_) => archive_room_request(room_id).await.map(|_| ()),
-            };
-
-            match result {
-                Ok(()) => {
-                    action_dialog.set(None);
-                    refresh_rooms.run(());
-                }
-                Err(message) => action_error.set(Some(message)),
+    {
+        let refresh_rooms = refresh_rooms.clone();
+        Effect::new(move |_| {
+            if !cfg!(feature = "hydrate") {
+                return;
             }
 
-            action_busy_room_id.set(None);
+            refresh_rooms.run(());
         });
-    });
-
-    view! {
-        <form on:submit=on_submit>
-            {rooms_page_content(
-                rooms_state.into(),
-                join_input,
-                joining.into(),
-                join_error,
-                action_error.into(),
-                action_busy_room_id.into(),
-                action_dialog.into(),
-                on_request_leave,
-                on_request_archive,
-                on_cancel_action,
-                on_confirm_action,
-            )}
-        </form>
     }
+
+    let on_submit = {
+        let board = board.clone();
+        move |event: SubmitEvent| {
+            event.prevent_default();
+            if board.joining.get_untracked() {
+                return;
+            }
+
+            let room_id = match parse_room_id_input(&board.join_input.get_untracked()) {
+                Ok(room_id) => room_id,
+                Err(message) => {
+                    board.join_error.set(Some(message));
+                    return;
+                }
+            };
+
+            board.join_error.set(None);
+            board.joining.set(true);
+
+            let navigate = navigate.clone();
+            let board = board.clone();
+            spawn_local(async move {
+                match join_room_request(room_id).await {
+                    Ok(_) => navigate(&room_route(room_id), Default::default()),
+                    Err(message)
+                        if message.contains("membership is already joined")
+                            || message.contains("membership is already pending")
+                            || message.contains("membership is pending approval") =>
+                    {
+                        navigate(&room_route(room_id), Default::default());
+                    }
+                    Err(message) => board.join_error.set(Some(message)),
+                }
+                board.joining.set(false);
+            });
+        }
+    };
+
+    let actions = RoomsBoardActions {
+        request_leave: {
+            let board = board.clone();
+            Callback::new(move |room: JoinedRoomSummary| board.request_leave(room))
+        },
+        request_archive: {
+            let board = board.clone();
+            Callback::new(move |room: JoinedRoomSummary| board.request_archive(room))
+        },
+        cancel_action: {
+            let board = board.clone();
+            Callback::new(move |_| board.cancel_action())
+        },
+        confirm_action: {
+            let board = board.clone();
+            let refresh_rooms = refresh_rooms.clone();
+            Callback::new(move |_| {
+                let Some(dialog) = board.action_dialog.get_untracked() else {
+                    return;
+                };
+
+                let room_id = dialog.room().room.id.into_inner();
+
+                board.action_error.set(None);
+                board.action_busy_room_id.set(Some(room_id));
+                let board = board.clone();
+                let refresh_rooms = refresh_rooms.clone();
+
+                spawn_local(async move {
+                    let result = match dialog {
+                        RoomsActionDialog::Leave(_) => {
+                            leave_room_request(room_id).await.map(|_| ())
+                        }
+                        RoomsActionDialog::Archive(_) => {
+                            archive_room_request(room_id).await.map(|_| ())
+                        }
+                    };
+
+                    match result {
+                        Ok(()) => {
+                            board.action_dialog.set(None);
+                            refresh_rooms.run(());
+                        }
+                        Err(message) => board.action_error.set(Some(message)),
+                    }
+
+                    board.action_busy_room_id.set(None);
+                });
+            })
+        },
+    };
+
+    view! { <form on:submit=on_submit>{rooms_page_content(board, actions)}</form> }
 }

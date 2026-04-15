@@ -4,7 +4,7 @@ use crate::client::components::preset_editor::PresetEditor;
 
 stylance::import_style!(style, "roll_editor.module.scss");
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum EditorMode {
     #[default]
     Builder,
@@ -163,7 +163,7 @@ impl RollBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct EditorState {
+struct EditorState {
     mode: EditorMode,
     expr: RwSignal<String>,
     builder: RwSignal<RollBuilder>,
@@ -178,7 +178,7 @@ impl Default for EditorState {
     }
 }
 impl EditorState {
-    pub fn get_expr(&self) -> String {
+    fn current_expression(&self) -> String {
         match &self.mode {
             EditorMode::Builder => self.builder.get().to_expr(),
             EditorMode::Expression => self.expr.get().to_string(),
@@ -196,6 +196,65 @@ impl EditorState {
 
     fn show_expression(&mut self) {
         self.mode = EditorMode::Expression;
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct RollEditorController {
+    state: RwSignal<EditorState>,
+}
+
+impl Default for RollEditorController {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RollEditorController {
+    pub fn new() -> Self {
+        Self {
+            state: RwSignal::new(EditorState::default()),
+        }
+    }
+
+    pub fn current_expression(self) -> String {
+        self.state.get().current_expression()
+    }
+
+    pub fn current_expression_signal(self) -> Signal<String> {
+        Signal::derive(move || self.current_expression())
+    }
+
+    pub fn load_expression(self, expr: &str) {
+        self.state.update(|editor| editor.load_expression(expr));
+    }
+
+    pub fn submit_roll(self, on_roll: Callback<String>) {
+        on_roll.run(self.current_expression());
+    }
+
+    pub fn preset_select_callback(self) -> Callback<String> {
+        Callback::new(move |expr: String| self.load_expression(&expr))
+    }
+
+    fn builder(self) -> RwSignal<RollBuilder> {
+        self.state.get_untracked().builder
+    }
+
+    fn expression_input(self) -> RwSignal<String> {
+        self.state.get_untracked().expr
+    }
+
+    fn mode(self) -> EditorMode {
+        self.state.get().mode
+    }
+
+    fn show_builder(self) {
+        self.state.update(|editor| editor.show_builder());
+    }
+
+    fn show_expression(self) {
+        self.state.update(|editor| editor.show_expression());
     }
 }
 
@@ -244,10 +303,6 @@ fn DieCard(
     }
 }
 
-pub fn current_expression_signal(state: RwSignal<EditorState>) -> Signal<String> {
-    Signal::derive(move || state.get().get_expr())
-}
-
 #[component]
 pub fn EditorExpressionPreview(#[prop(into)] expression: Signal<String>) -> impl IntoView {
     view! {
@@ -259,7 +314,9 @@ pub fn EditorExpressionPreview(#[prop(into)] expression: Signal<String>) -> impl
 }
 
 #[component]
-fn BuilderEditor(builder: RwSignal<RollBuilder>) -> impl IntoView {
+fn BuilderEditor(controller: RollEditorController) -> impl IntoView {
+    let builder = controller.builder();
+
     view! {
         <div class=style::roll_editor_panel>
             <div class=style::roll_editor_grid>
@@ -324,23 +381,26 @@ fn ExpressionEditor(expr: RwSignal<String>, input_id: String) -> impl IntoView {
 }
 
 #[component]
-pub fn EditorComponent(state: RwSignal<EditorState>, expression_input_id: String) -> impl IntoView {
+pub fn EditorComponent(
+    controller: RollEditorController,
+    expression_input_id: String,
+) -> impl IntoView {
     view! {
         <div class="g-roll-editor-mode-switch">
             <button
                 on:click=move |_| {
-                    state.update(|editor| editor.show_builder());
+                    controller.show_builder();
                 }
                 class="g-button-mode"
-                class=("g-button-mode-active", move || state.get().mode == EditorMode::Builder)
+                class=("g-button-mode-active", move || controller.mode() == EditorMode::Builder)
             >
                 "Dice Bench"
             </button>
             <button
                 class="g-button-mode"
-                class=("g-button-mode-active", move || state.get().mode == EditorMode::Expression)
+                class=("g-button-mode-active", move || controller.mode() == EditorMode::Expression)
                 on:click=move |_| {
-                    state.update(|editor| editor.show_expression());
+                    controller.show_expression();
                 }
             >
                 "Expression"
@@ -349,12 +409,12 @@ pub fn EditorComponent(state: RwSignal<EditorState>, expression_input_id: String
         </div>
         <div>
             {move || {
-                if matches!(state.get().mode, EditorMode::Builder) {
-                    view! { <BuilderEditor builder=state.get().builder /> }.into_any()
+                if matches!(controller.mode(), EditorMode::Builder) {
+                    view! { <BuilderEditor controller=controller /> }.into_any()
                 } else {
                     view! {
                         <ExpressionEditor
-                            expr=state.get().expr
+                            expr=controller.expression_input()
                             input_id=expression_input_id.clone()
                         />
                     }
@@ -367,12 +427,12 @@ pub fn EditorComponent(state: RwSignal<EditorState>, expression_input_id: String
 
 #[component]
 pub fn RollEditorPanel(
-    state: RwSignal<EditorState>,
+    controller: RollEditorController,
     expression_input_id: String,
     #[prop(optional)] show_heading: bool,
     children: ChildrenFn,
 ) -> impl IntoView {
-    let current_expression = current_expression_signal(state);
+    let current_expression = controller.current_expression_signal();
 
     view! {
         <section class=style::roll_editor>
@@ -386,7 +446,7 @@ pub fn RollEditorPanel(
                 </div>
             </Show>
 
-            <EditorComponent state=state expression_input_id=expression_input_id />
+            <EditorComponent controller=controller expression_input_id=expression_input_id />
             <div class=style::roll_editor_footer>
                 <EditorExpressionPreview expression=current_expression />
                 <div class=style::roll_editor_actions>{children()}</div>
@@ -398,18 +458,22 @@ pub fn RollEditorPanel(
 #[component]
 pub fn RollEditor(
     #[prop(into)] on_roll: Callback<String>,
-    #[prop(optional)] state: Option<RwSignal<EditorState>>,
+    #[prop(optional)] controller: Option<RollEditorController>,
     #[prop(optional, into)] expression_input_id: MaybeProp<String>,
 ) -> impl IntoView {
-    let state = state.unwrap_or(RwSignal::new(EditorState::default()));
-    let current_expression = current_expression_signal(state);
+    let controller = controller.unwrap_or_default();
+    let current_expression = controller.current_expression_signal();
     let expression_input_id = expression_input_id
         .get()
         .unwrap_or_else(|| "expression-editor-input".to_string());
 
     view! {
         <div class=style::roll_editor_stack>
-            <RollEditorPanel state=state expression_input_id=expression_input_id show_heading=true>
+            <RollEditorPanel
+                controller=controller
+                expression_input_id=expression_input_id
+                show_heading=true
+            >
                 <a class="g-button-ghost" href="/reference">
                     "Open reference"
                 </a>
@@ -417,7 +481,7 @@ pub fn RollEditor(
                     class="g-button-action"
                     type="button"
                     on:click=move |_| {
-                        on_roll.run(state.get().get_expr());
+                        controller.submit_roll(on_roll);
                     }
                 >
                     "Roll to ledger"
@@ -425,9 +489,7 @@ pub fn RollEditor(
             </RollEditorPanel>
             <PresetEditor
                 expression=current_expression
-                on_select=Callback::new(move |expr: String| {
-                    state.update(|editor| editor.load_expression(&expr));
-                })
+                on_select=controller.preset_select_callback()
             />
         </div>
     }

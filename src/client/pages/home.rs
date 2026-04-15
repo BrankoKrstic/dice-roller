@@ -7,7 +7,7 @@ use crate::{
     client::{
         components::{
             bottom_roll_composer::BottomRollComposer,
-            roll_editor::{EditorState, RollEditor},
+            roll_editor::{RollEditor, RollEditorController},
             roll_feed::RollFeed,
         },
         context::{auth::use_auth_context, page_title::use_static_page_title},
@@ -44,7 +44,7 @@ pub(crate) fn HomePage() -> impl IntoView {
     let auth = use_auth_context();
     let feed = RwSignal::new(DiceRollFeed::new());
     let roll_error = RwSignal::new(None::<String>);
-    let editor_state = RwSignal::new(EditorState::default());
+    let editor = RollEditorController::new();
 
     let load_older_rolls = || {};
 
@@ -66,7 +66,7 @@ pub(crate) fn HomePage() -> impl IntoView {
                 <section class=style::home_column>
                     <div class=style::home_inline_editor>
                         <RollEditor
-                            state=editor_state
+                            controller=editor
                             on_roll=process_roll
                             expression_input_id="home-editor-expression-input".to_string()
                         />
@@ -104,7 +104,7 @@ pub(crate) fn HomePage() -> impl IntoView {
                 </aside>
             </div>
             <BottomRollComposer
-                state=editor_state
+                controller=editor
                 expression_input_id="home-mobile-expression-input".to_string()
                 on_roll=process_roll
                 error=move || roll_error.get()

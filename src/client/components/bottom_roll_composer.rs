@@ -3,14 +3,14 @@ use leptos::prelude::*;
 use crate::client::components::{
     dialog::{Dialog, DialogPresentation},
     preset_editor::PresetEditor,
-    roll_editor::{EditorState, RollEditorPanel, current_expression_signal},
+    roll_editor::{RollEditorController, RollEditorPanel},
 };
 
 stylance::import_style!(style, "bottom_roll_composer.module.scss");
 
 #[component]
 pub fn BottomRollComposer(
-    state: RwSignal<EditorState>,
+    controller: RollEditorController,
     expression_input_id: String,
     #[prop(into)] on_roll: Callback<String>,
     #[prop(into)] error: Signal<Option<String>>,
@@ -18,7 +18,7 @@ pub fn BottomRollComposer(
     dialog_summary: String,
 ) -> impl IntoView {
     let composer_open = RwSignal::new(false);
-    let current_expression = current_expression_signal(state);
+    let current_expression = controller.current_expression_signal();
     let dialog_expression_input_id = expression_input_id.clone();
 
     view! {
@@ -44,7 +44,7 @@ pub fn BottomRollComposer(
                     class="g-button-action"
                     type="button"
                     on:click=move |_| {
-                        on_roll.run(state.get().get_expr());
+                        controller.submit_roll(on_roll);
                     }
                 >
                     "Roll"
@@ -63,7 +63,7 @@ pub fn BottomRollComposer(
         >
             <div class=style::mobile_dialog_body>
                 <RollEditorPanel
-                    state=state
+                    controller=controller
                     expression_input_id=dialog_expression_input_id.clone()
                     show_heading=false
                 >
@@ -75,12 +75,7 @@ pub fn BottomRollComposer(
                         "Confirm"
                     </button>
                 </RollEditorPanel>
-                <PresetEditor
-                    expression=current_expression
-                    on_select=Callback::new(move |expr: String| {
-                        state.update(|editor| editor.load_expression(&expr));
-                    })
-                />
+                <PresetEditor expression=current_expression on_select=controller.preset_select_callback() />
             </div>
         </Dialog>
     }

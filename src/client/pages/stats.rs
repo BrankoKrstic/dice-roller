@@ -3,9 +3,7 @@ use leptos::prelude::*;
 use crate::{
     ChanceResult,
     client::{
-        components::roll_editor::{
-            EditorComponent, EditorExpressionPreview, EditorState, current_expression_signal,
-        },
+        components::roll_editor::{EditorComponent, EditorExpressionPreview, RollEditorController},
         context::page_title::use_static_page_title,
     },
 };
@@ -187,10 +185,10 @@ pub fn StatsPage() -> impl IntoView {
 
     let (variant, set_variant) = signal(CalculatorVariant::Ac);
     let (target, set_target) = signal(15);
-    let to_hit_editor = RwSignal::new(EditorState::default());
-    let dmg_editor = RwSignal::new(EditorState::default());
-    let to_hit_expression = current_expression_signal(to_hit_editor);
-    let dmg_expression = current_expression_signal(dmg_editor);
+    let to_hit_editor = RollEditorController::new();
+    let dmg_editor = RollEditorController::new();
+    let to_hit_expression = to_hit_editor.current_expression_signal();
+    let dmg_expression = dmg_editor.current_expression_signal();
     let (running, set_running) = signal(false);
     let (error, set_error) = signal::<Option<String>>(None);
     let (result, set_result) = signal::<Option<ChanceResult>>(None);
@@ -217,8 +215,8 @@ pub fn StatsPage() -> impl IntoView {
         };
 
         let request = match serde_json::to_string(&WorkerSimulationRequest {
-            to_hit_expression: to_hit_editor.get().get_expr(),
-            damage_expression: dmg_editor.get().get_expr(),
+            to_hit_expression: to_hit_editor.current_expression(),
+            damage_expression: dmg_editor.current_expression(),
             target: target.get(),
             trials: 1_000_000,
             ac_mode: matches!(variant.get(), CalculatorVariant::Ac),
@@ -332,7 +330,7 @@ pub fn StatsPage() -> impl IntoView {
                             </h3>
                             <div class=style::stats_editor_body>
                                 <EditorComponent
-                                    state=to_hit_editor
+                                    controller=to_hit_editor
                                     expression_input_id="chance-to-hit-expression-input".to_string()
                                 />
                                 <EditorExpressionPreview expression=to_hit_expression />
@@ -344,7 +342,7 @@ pub fn StatsPage() -> impl IntoView {
                             <h3 class=style::stats_editor_block_title>"Damage roll"</h3>
                             <div class=style::stats_editor_body>
                                 <EditorComponent
-                                    state=dmg_editor
+                                    controller=dmg_editor
                                     expression_input_id="chance-damage-expression-input".to_string()
                                 />
                                 <EditorExpressionPreview expression=dmg_expression />

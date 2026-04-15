@@ -4,7 +4,11 @@ use crate::{
     client::{
         components::dialog::Dialog,
         context::auth::use_auth_context,
-        utils::{api::parse_error_response, url::base_url},
+        utils::{
+            api::parse_error_response,
+            async_state::{LoadState, MutationState},
+            url::base_url,
+        },
     },
     shared::data::{
         preset::{Preset, PresetRequest},
@@ -32,63 +36,76 @@ fn save_disabled(presets_len: usize, saving: bool) -> bool {
 
 #[derive(Clone)]
 struct PresetEditorState {
-    presets: RwSignal<Vec<Preset>>,
-    loading: RwSignal<bool>,
-    load_error: RwSignal<Option<String>>,
+    presets_state: RwSignal<LoadState<Vec<Preset>, String>>,
     dialog: RwSignal<Option<PendingDialog>>,
     pending_name: RwSignal<String>,
-    saving: RwSignal<bool>,
-    save_error: RwSignal<Option<String>>,
+    save_state: RwSignal<MutationState<String>>,
     archiving_id: RwSignal<Option<i64>>,
-    archive_error: RwSignal<Option<String>>,
+    archive_state: RwSignal<MutationState<String>>,
     last_loaded_user_id: RwSignal<Option<i64>>,
 }
 
 impl PresetEditorState {
     fn new() -> Self {
         Self {
-            presets: RwSignal::new(Vec::new()),
-            loading: RwSignal::new(false),
-            load_error: RwSignal::new(None),
+            presets_state: RwSignal::new(LoadState::idle()),
             dialog: RwSignal::new(None),
             pending_name: RwSignal::new(String::new()),
-            saving: RwSignal::new(false),
-            save_error: RwSignal::new(None),
+            save_state: RwSignal::new(MutationState::idle()),
             archiving_id: RwSignal::new(None),
-            archive_error: RwSignal::new(None),
+            archive_state: RwSignal::new(MutationState::idle()),
             last_loaded_user_id: RwSignal::new(None),
         }
     }
 
     fn reset_for_signed_out(&self) {
-        self.presets.set(Vec::new());
-        self.loading.set(false);
-        self.load_error.set(None);
+        self.presets_state.set(LoadState::idle());
         self.dialog.set(None);
         self.pending_name.set(String::new());
-        self.saving.set(false);
-        self.save_error.set(None);
+        self.save_state.set(MutationState::idle());
         self.archiving_id.set(None);
-        self.archive_error.set(None);
+        self.archive_state.set(MutationState::idle());
         self.last_loaded_user_id.set(None);
     }
 
     fn dismiss_dialog(&self) {
         self.dialog.set(None);
         self.pending_name.set(String::new());
-        self.save_error.set(None);
-        self.archive_error.set(None);
+        self.save_state.set(MutationState::idle());
+        self.archive_state.set(MutationState::idle());
     }
 
     fn open_save_dialog(&self) {
-        self.save_error.set(None);
+        self.save_state.set(MutationState::idle());
         self.pending_name.set(String::new());
         self.dialog.set(Some(PendingDialog::Save));
     }
 
+    fn preset_count(&self) -> usize {
+        match self.presets_state.get_untracked() {
+            LoadState::Ready(items) => items.len(),
+            _ => 0,
+        }
+    }
+
+    fn loading_error_signal(&self) -> Signal<Option<String>> {
+        let state = self.clone();
+        Signal::derive(move || state.presets_state.get().as_error().cloned())
+    }
+
+    fn save_error_signal(&self) -> Signal<Option<String>> {
+        let state = self.clone();
+        Signal::derive(move || state.save_state.get().as_error().cloned())
+    }
+
+    fn archive_error_signal(&self) -> Signal<Option<String>> {
+        let state = self.clone();
+        Signal::derive(move || state.archive_state.get().as_error().cloned())
+    }
+
     fn preset_count_signal(&self) -> Signal<usize> {
         let state = self.clone();
-        Signal::derive(move || state.presets.get().len())
+        Signal::derive(move || state.preset_count())
     }
 
     fn save_dialog_open_signal(&self) -> Signal<bool> {
@@ -103,19 +120,46 @@ impl PresetEditorState {
 
     fn save_disabled_signal(&self) -> Signal<bool> {
         let state = self.clone();
-        Signal::derive(move || save_disabled(state.presets.get().len(), state.saving.get()))
+        Signal::derive(move || {
+            save_disabled(state.preset_count(), state.save_state.get().is_pending())
+        })
     }
 
     fn selected_delete_preset_signal(&self) -> Signal<Option<Preset>> {
         let state = self.clone();
         Signal::derive(move || match state.dialog.get() {
-            Some(PendingDialog::Delete(preset_id)) => state
-                .presets
-                .get()
-                .into_iter()
-                .find(|preset| preset.id.0 == preset_id),
+            Some(PendingDialog::Delete(preset_id)) => match state.presets_state.get() {
+                LoadState::Ready(items) => {
+                    items.into_iter().find(|preset| preset.id.0 == preset_id)
+                }
+                _ => None,
+            },
             _ => None,
         })
+    }
+
+    fn replace_presets(&self, items: Vec<Preset>) {
+        self.presets_state.set(LoadState::ready(items));
+    }
+
+    fn clear_presets_with_error(&self, message: String) {
+        self.presets_state.set(LoadState::error(message));
+    }
+
+    fn push_preset(&self, preset: Preset) {
+        self.presets_state.update(|state| {
+            if let LoadState::Ready(items) = state {
+                items.push(preset);
+            }
+        });
+    }
+
+    fn remove_preset(&self, preset_id: i64) {
+        self.presets_state.update(|state| {
+            if let LoadState::Ready(items) = state {
+                items.retain(|preset| preset.id.0 != preset_id);
+            }
+        });
     }
 }
 
@@ -164,7 +208,7 @@ fn PresetCard(
                     type="button"
                     prop:disabled=move || state.archiving_id.get() == Some(delete_id)
                     on:click=move |_| {
-                        state.archive_error.set(None);
+                        state.archive_state.set(MutationState::idle());
                         state.dialog.set(Some(PendingDialog::Delete(delete_id)));
                     }
                 >
@@ -190,7 +234,7 @@ fn SavePresetDialog(
 ) -> impl IntoView {
     let preset_count = state.preset_count_signal();
     let input_state = state.clone();
-    let error_state = state.clone();
+    let error_signal = state.save_error_signal();
     let disable_state = state.clone();
     let label_state = state.clone();
 
@@ -212,7 +256,7 @@ fn SavePresetDialog(
                 type="text"
                 prop:value=move || input_state.pending_name.get()
                 on:input=move |event| {
-                    input_state.save_error.set(None);
+                    input_state.save_state.set(MutationState::idle());
                     input_state.pending_name.set(event_target_value(&event));
                 }
                 maxlength="48"
@@ -223,8 +267,7 @@ fn SavePresetDialog(
                 <code class=style::dialog_expression_code>{move || expression.get()}</code>
             </div>
             {move || {
-                error_state
-                    .save_error
+                error_signal
                     .get()
                     .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
             }}
@@ -236,13 +279,19 @@ fn SavePresetDialog(
                     class="g-button-action"
                     type="button"
                     prop:disabled=move || {
-                        disable_state.saving.get()
+                        disable_state.save_state.get().is_pending()
                             || disable_state.pending_name.get().trim().is_empty()
                             || preset_count.get() >= MAX_PRESETS
                     }
                     on:click=move |_| on_submit.run(())
                 >
-                    {move || if label_state.saving.get() { "Saving..." } else { "Save preset" }}
+                    {move || {
+                        if label_state.save_state.get().is_pending() {
+                            "Saving..."
+                        } else {
+                            "Save preset"
+                        }
+                    }}
                 </button>
             </div>
         </Dialog>
@@ -256,7 +305,7 @@ fn DeletePresetDialog(
     #[prop(into)] on_confirm: Callback<()>,
 ) -> impl IntoView {
     let selected_delete_preset = state.selected_delete_preset_signal();
-    let error_state = state.clone();
+    let error_signal = state.archive_error_signal();
     let disable_state = state.clone();
     let label_state = state.clone();
 
@@ -272,8 +321,7 @@ fn DeletePresetDialog(
                 {move || delete_dialog_copy(selected_delete_preset.get())}
             </p>
             {move || {
-                error_state
-                    .archive_error
+                error_signal
                     .get()
                     .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
             }}
@@ -380,10 +428,10 @@ pub fn PresetEditor(
             }
 
             state.last_loaded_user_id.set(Some(user_id));
-            state.loading.set(true);
-            state.load_error.set(None);
+            state.presets_state.set(LoadState::loading());
 
             let auth = auth_for_effect.clone();
+            let request_state = state.clone();
             spawn_local(async move {
                 let response = list_presets_request().await;
 
@@ -392,17 +440,9 @@ pub fn PresetEditor(
                 }
 
                 match response {
-                    Ok(items) => {
-                        state.presets.set(items);
-                        state.load_error.set(None);
-                    }
-                    Err(message) => {
-                        state.presets.set(Vec::new());
-                        state.load_error.set(Some(message));
-                    }
+                    Ok(items) => request_state.replace_presets(items),
+                    Err(message) => request_state.clear_presets_with_error(message),
                 }
-
-                state.loading.set(false);
             });
         });
     }
@@ -425,8 +465,8 @@ pub fn PresetEditor(
     let submit_save = {
         let state = state.clone();
         Callback::new(move |_| {
-            if state.saving.get_untracked()
-                || save_disabled(state.presets.get_untracked().len(), false)
+            if state.save_state.get_untracked().is_pending()
+                || save_disabled(state.preset_count(), false)
             {
                 return;
             }
@@ -434,13 +474,13 @@ pub fn PresetEditor(
             let name = state.pending_name.get_untracked().trim().to_string();
             if name.is_empty() {
                 state
-                    .save_error
-                    .set(Some("Preset name is required".to_string()));
+                    .save_state
+                    .set(MutationState::error("Preset name is required".to_string()));
                 return;
             }
 
             let Some(user_id) = current_user_id(&auth_for_save) else {
-                state.save_error.set(Some(
+                state.save_state.set(MutationState::error(
                     "You need to sign in before saving presets".to_string(),
                 ));
                 return;
@@ -451,8 +491,7 @@ pub fn PresetEditor(
                 expr: expression.get_untracked(),
             };
 
-            state.saving.set(true);
-            state.save_error.set(None);
+            state.save_state.set(MutationState::pending());
 
             let auth = auth_for_save.clone();
             let state = state.clone();
@@ -465,14 +504,13 @@ pub fn PresetEditor(
 
                 match response {
                     Ok(preset) => {
-                        state.presets.update(|items| items.push(preset));
+                        state.push_preset(preset);
                         state.dialog.set(None);
                         state.pending_name.set(String::new());
+                        state.save_state.set(MutationState::success());
                     }
-                    Err(message) => state.save_error.set(Some(message)),
+                    Err(message) => state.save_state.set(MutationState::error(message)),
                 }
-
-                state.saving.set(false);
             });
         })
     };
@@ -490,14 +528,14 @@ pub fn PresetEditor(
             }
 
             let Some(user_id) = current_user_id(&auth_for_archive) else {
-                state.archive_error.set(Some(
+                state.archive_state.set(MutationState::error(
                     "You need to sign in before archiving presets".to_string(),
                 ));
                 return;
             };
 
             state.archiving_id.set(Some(preset_id));
-            state.archive_error.set(None);
+            state.archive_state.set(MutationState::pending());
 
             let auth = auth_for_archive.clone();
             let state = state.clone();
@@ -510,12 +548,11 @@ pub fn PresetEditor(
 
                 match response {
                     Ok(()) => {
-                        state
-                            .presets
-                            .update(|items| items.retain(|preset| preset.id.0 != preset_id));
+                        state.remove_preset(preset_id);
                         state.dialog.set(None);
+                        state.archive_state.set(MutationState::success());
                     }
-                    Err(message) => state.archive_error.set(Some(message)),
+                    Err(message) => state.archive_state.set(MutationState::error(message)),
                 }
 
                 state.archiving_id.set(None);
@@ -525,6 +562,7 @@ pub fn PresetEditor(
 
     let preset_count = state.preset_count_signal();
     let save_cta_disabled = state.save_disabled_signal();
+    let load_error = state.loading_error_signal();
 
     let auth_for_view = auth.clone();
     let view_state = state.clone();
@@ -534,7 +572,6 @@ pub fn PresetEditor(
             if auth_for_view.loading.get() || auth_for_view.user.get().is_none() {
                 return None;
             }
-            let load_error_state = view_state.clone();
             let presets_state = view_state.clone();
             let footer_state = view_state.clone();
             let save_dialog_state = view_state.clone();
@@ -563,8 +600,7 @@ pub fn PresetEditor(
                         </div>
 
                         {move || {
-                            load_error_state
-                                .load_error
+                            load_error
                                 .get()
                                 .map(|message| {
                                     view! { <p class=style::preset_feedback>{message}</p> }
@@ -573,38 +609,50 @@ pub fn PresetEditor(
 
                         <div class=style::preset_rail>
                             {move || {
-                                if presets_state.loading.get() {
-                                    view! {
-                                        <p class=format!(
-                                            "g-result-hint {}",
-                                            style::preset_hint_card,
-                                        )>"Loading your saved presets..."</p>
+                                match presets_state.presets_state.get() {
+                                    LoadState::Idle | LoadState::Loading => {
+                                        view! {
+                                            <p class=format!(
+                                                "g-result-hint {}",
+                                                style::preset_hint_card,
+                                            )>"Loading your saved presets..."</p>
+                                        }
+                                            .into_any()
                                     }
-                                        .into_any()
-                                } else if presets_state.presets.get().is_empty() {
-                                    view! {
-                                        <div class=style::preset_empty>
-                                            <span class=style::preset_empty_title>
-                                                "No presets saved yet."
-                                            </span>
-                                            <p class="g-result-hint">"Saved rolls will appear here."</p>
-                                        </div>
+                                    LoadState::Error(_) => {
+                                        view! {
+                                            <div class=style::preset_empty>
+                                                <span class=style::preset_empty_title>
+                                                    "No presets saved yet."
+                                                </span>
+                                                <p class="g-result-hint">"Saved rolls will appear here."</p>
+                                            </div>
+                                        }
+                                            .into_any()
                                     }
-                                        .into_any()
-                                } else {
-                                    let card_state = presets_state.clone();
-                                    let on_select = on_select.clone();
-                                    presets_state
-                                        .presets
-                                        .get()
-                                        .into_iter()
-                                        .map(move |preset| {
-                                            let state = card_state.clone();
-                                            let on_select = on_select.clone();
-                                            view! { <PresetCard preset state on_select /> }
-                                        })
-                                        .collect_view()
-                                        .into_any()
+                                    LoadState::Ready(ref items) if items.is_empty() => {
+                                        view! {
+                                            <div class=style::preset_empty>
+                                                <span class=style::preset_empty_title>
+                                                    "No presets saved yet."
+                                                </span>
+                                                <p class="g-result-hint">"Saved rolls will appear here."</p>
+                                            </div>
+                                        }
+                                            .into_any()
+                                    }
+                                    LoadState::Ready(items) => {
+                                        let card_state = presets_state.clone();
+                                        let on_select = on_select.clone();
+                                        items.into_iter()
+                                            .map(move |preset| {
+                                                let state = card_state.clone();
+                                                let on_select = on_select.clone();
+                                                view! { <PresetCard preset state on_select /> }
+                                            })
+                                            .collect_view()
+                                            .into_any()
+                                    }
                                 }
                             }}
                         </div>
@@ -622,7 +670,12 @@ pub fn PresetEditor(
                                 prop:disabled=move || save_cta_disabled.get()
                                 on:click=move |_| open_save_dialog.run(())
                             >
-                                {move || save_cta_copy(footer_state.saving.get(), preset_count.get())}
+                                {move || {
+                                    save_cta_copy(
+                                        footer_state.save_state.get().is_pending(),
+                                        preset_count.get(),
+                                    )
+                                }}
                             </button>
                         </div>
 

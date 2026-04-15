@@ -5,6 +5,7 @@ use crate::{
     client::{
         components::roll_editor::{EditorComponent, EditorExpressionPreview, RollEditorController},
         context::page_title::use_static_page_title,
+        utils::async_state::LoadState,
     },
 };
 
@@ -66,9 +67,7 @@ fn average_damage_on_success(result: &ChanceResult) -> f32 {
 
 #[cfg(feature = "hydrate")]
 fn spawn_chance_worker(
-    set_result: WriteSignal<Option<ChanceResult>>,
-    set_error: WriteSignal<Option<String>>,
-    set_running: WriteSignal<bool>,
+    set_simulation_state: WriteSignal<LoadState<ChanceResult, String>>,
 ) -> Result<Worker, String> {
     let options = web_sys::WorkerOptions::new();
     options.set_type(web_sys::WorkerType::Module);
@@ -90,19 +89,19 @@ fn spawn_chance_worker(
             let response = match response {
                 Ok(result) => result,
                 Err(message) => {
-                    set_error.set(Some(message));
-                    set_running.set(false);
+                    set_simulation_state.set(LoadState::error(message));
                     return;
                 }
             };
 
             match response {
                 WorkerSimulationResponse::Result(chance_result) => {
-                    set_result.set(Some(chance_result))
+                    set_simulation_state.set(LoadState::ready(chance_result))
                 }
-                WorkerSimulationResponse::Error(err) => set_error.set(Some(err)),
+                WorkerSimulationResponse::Error(err) => {
+                    set_simulation_state.set(LoadState::error(err))
+                }
             }
-            set_running.set(false);
         },
     );
 
@@ -114,14 +113,12 @@ fn spawn_chance_worker(
 
 #[component]
 fn StatsResultPanel(
-    running: ReadSignal<bool>,
-    result: ReadSignal<Option<ChanceResult>>,
-    error: ReadSignal<Option<String>>,
+    #[prop(into)] simulation_state: Signal<LoadState<ChanceResult, String>>,
 ) -> impl IntoView {
     view! {
         <section class=style::stats_result aria-live="polite">
-            {move || {
-                if let Some(result) = result.get() {
+            {move || match simulation_state.get() {
+                LoadState::Ready(result) => {
                     view! {
                         <article class=style::stats_card>
                             <h3 class=style::stats_card_label>"Simulation result"</h3>
@@ -139,7 +136,8 @@ fn StatsResultPanel(
                         </article>
                     }
                         .into_any()
-                } else if let Some(message) = error.get() {
+                }
+                LoadState::Error(message) => {
                     view! {
                         <article class=format!("{} {}", style::stats_card, style::stats_card_error)>
                             <h3 class=style::stats_card_label>"Simulation error"</h3>
@@ -147,30 +145,28 @@ fn StatsResultPanel(
                         </article>
                     }
                         .into_any()
-                } else {
+                }
+                LoadState::Loading => {
                     view! {
-                        <Show
-                            when=move || running.get()
-                            fallback=move || {
-                                view! {
-                                    <article class=style::stats_card>
-                                        <h3 class=style::stats_card_label>"Ready"</h3>
-                                        <p class=style::stats_card_hint>
-                                            "Set the target, draft the two rolls, then run the ledger."
-                                        </p>
-                                    </article>
-                                }
-                            }
+                        <div
+                            class=style::stats_loader
+                            role="status"
+                            aria-label="Simulation in progress"
                         >
-                            <div
-                                class=style::stats_loader
-                                role="status"
-                                aria-label="Simulation in progress"
-                            >
-                                <div class=style::stats_loader_spinner></div>
-                                <p class=style::stats_loader_text>"Running simulation"</p>
-                            </div>
-                        </Show>
+                            <div class=style::stats_loader_spinner></div>
+                            <p class=style::stats_loader_text>"Running simulation"</p>
+                        </div>
+                    }
+                        .into_any()
+                }
+                LoadState::Idle => {
+                    view! {
+                        <article class=style::stats_card>
+                            <h3 class=style::stats_card_label>"Ready"</h3>
+                            <p class=style::stats_card_hint>
+                                "Set the target, draft the two rolls, then run the ledger."
+                            </p>
+                        </article>
                     }
                         .into_any()
                 }
@@ -189,27 +185,23 @@ pub fn StatsPage() -> impl IntoView {
     let dmg_editor = RollEditorController::new();
     let to_hit_expression = to_hit_editor.current_expression_signal();
     let dmg_expression = dmg_editor.current_expression_signal();
-    let (running, set_running) = signal(false);
-    let (error, set_error) = signal::<Option<String>>(None);
-    let (result, set_result) = signal::<Option<ChanceResult>>(None);
+    let (simulation_state, set_simulation_state) =
+        signal::<LoadState<ChanceResult, String>>(LoadState::idle());
 
     #[cfg(not(feature = "hydrate"))]
-    let _ = (&set_running, &set_error, &set_result);
+    let _ = &set_simulation_state;
 
     #[cfg(feature = "hydrate")]
-    let worker = spawn_chance_worker(set_result, set_error, set_running);
+    let worker = spawn_chance_worker(set_simulation_state);
 
     #[cfg(feature = "hydrate")]
     let run_simulation = move |_| {
-        set_running.set(true);
-        set_result.set(None);
-        set_error.set(None);
+        set_simulation_state.set(LoadState::loading());
 
         let worker = match &worker {
             Ok(worker) => worker,
             Err(message) => {
-                set_running.set(false);
-                set_error.set(Some(message.clone()));
+                set_simulation_state.set(LoadState::error(message.clone()));
                 return;
             }
         };
@@ -223,15 +215,15 @@ pub fn StatsPage() -> impl IntoView {
         }) {
             Ok(request) => request,
             Err(error) => {
-                set_running.set(false);
-                set_error.set(Some(format!("Failed to start simulation: {error}")));
+                set_simulation_state.set(LoadState::error(format!(
+                    "Failed to start simulation: {error}"
+                )));
                 return;
             }
         };
 
         if let Err(error) = worker.post_message(&JsValue::from_str(&request)) {
-            set_running.set(false);
-            set_error.set(Some(format!(
+            set_simulation_state.set(LoadState::error(format!(
                 "Failed to send simulation request: {error:?}"
             )));
         }
@@ -354,9 +346,15 @@ pub fn StatsPage() -> impl IntoView {
                         class="g-button-action"
                         type="button"
                         on:click=run_simulation
-                        prop:disabled=move || running.get()
+                        prop:disabled=move || simulation_state.get().is_loading()
                     >
-                        {move || if running.get() { "Running..." } else { "Run Simulation" }}
+                        {move || {
+                            if simulation_state.get().is_loading() {
+                                "Running..."
+                            } else {
+                                "Run Simulation"
+                            }
+                        }}
                     </button>
                 </section>
             </section>
@@ -370,7 +368,7 @@ pub fn StatsPage() -> impl IntoView {
                     </p>
                 </section>
 
-                <StatsResultPanel running=running result=result error=error />
+                <StatsResultPanel simulation_state=simulation_state />
             </aside>
         </div>
     }

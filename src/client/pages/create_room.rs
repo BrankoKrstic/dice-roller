@@ -4,15 +4,17 @@ use web_sys::SubmitEvent;
 
 use crate::client::{
     context::page_title::use_static_page_title,
-    utils::rooms::{create_room_request, room_route, validate_room_name_input},
+    utils::{
+        async_state::MutationState,
+        rooms::{create_room_request, room_route, validate_room_name_input},
+    },
 };
 
 stylance::import_style!(style, "create_room.module.scss");
 
 fn create_room_page_content(
     room_name: RwSignal<String>,
-    submitting: RwSignal<bool>,
-    error: RwSignal<Option<String>>,
+    submit_state: RwSignal<MutationState<String>>,
     on_submit: impl Fn(SubmitEvent) + 'static,
 ) -> impl IntoView {
     view! {
@@ -53,23 +55,32 @@ fn create_room_page_content(
                             placeholder="Moonlit Ledger"
                             prop:value=move || room_name.get()
                             on:input=move |event| {
-                                error.set(None);
+                                submit_state.set(MutationState::idle());
                                 room_name.set(event_target_value(&event));
                             }
                         />
                         {move || {
-                            error
+                            submit_state
                                 .get()
+                                .as_error()
+                                .cloned()
                                 .map(|message| view! { <p class=style::form_error>{message}</p> })
                         }}
                         <button
                             class="g-button-action"
                             type="submit"
                             prop:disabled=move || {
-                                submitting.get() || room_name.get().trim().is_empty()
+                                submit_state.get().is_pending()
+                                    || room_name.get().trim().is_empty()
                             }
                         >
-                            {move || if submitting.get() { "Creating..." } else { "Create room" }}
+                            {move || {
+                                if submit_state.get().is_pending() {
+                                    "Creating..."
+                                } else {
+                                    "Create room"
+                                }
+                            }}
                         </button>
                     </form>
                 </section>
@@ -84,35 +95,35 @@ pub fn CreateRoomPage() -> impl IntoView {
 
     let navigate = use_navigate();
     let room_name = RwSignal::new(String::new());
-    let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+    let submit_state = RwSignal::new(MutationState::idle());
 
     let on_submit = move |event: SubmitEvent| {
         event.prevent_default();
-        if submitting.get_untracked() {
+        if submit_state.get_untracked().is_pending() {
             return;
         }
 
         let name = match validate_room_name_input(&room_name.get_untracked()) {
             Ok(name) => name,
             Err(message) => {
-                error.set(Some(message));
+                submit_state.set(MutationState::error(message));
                 return;
             }
         };
 
-        error.set(None);
-        submitting.set(true);
+        submit_state.set(MutationState::pending());
 
         let navigate = navigate.clone();
         spawn_local(async move {
             match create_room_request(name).await {
-                Ok(room) => navigate(&room_route(room.id.into_inner()), Default::default()),
-                Err(message) => error.set(Some(message)),
+                Ok(room) => {
+                    submit_state.set(MutationState::success());
+                    navigate(&room_route(room.id.into_inner()), Default::default());
+                }
+                Err(message) => submit_state.set(MutationState::error(message)),
             }
-            submitting.set(false);
         });
     };
 
-    view! { {create_room_page_content(room_name, submitting, error, on_submit)} }
+    view! { {create_room_page_content(room_name, submit_state, on_submit)} }
 }

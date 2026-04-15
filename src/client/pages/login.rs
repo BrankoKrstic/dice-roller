@@ -6,7 +6,7 @@ use web_sys::SubmitEvent;
 use crate::{
     client::{
         context::{auth::use_auth_context, page_title::use_static_page_title},
-        utils::{api::parse_error_response, url::base_url},
+        utils::{api::parse_error_response, async_state::MutationState, url::base_url},
     },
     shared::data::user::AuthUser,
 };
@@ -45,8 +45,7 @@ pub(super) fn LoginPage() -> impl IntoView {
 
     let login = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
-    let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+    let submit_state = RwSignal::new(MutationState::idle());
 
     let redirect_home = navigate.clone();
     Effect::new(move |_| {
@@ -59,12 +58,11 @@ pub(super) fn LoginPage() -> impl IntoView {
 
     let on_submit = move |event: SubmitEvent| {
         event.prevent_default();
-        if submitting.get_untracked() {
+        if submit_state.get_untracked().is_pending() {
             return;
         }
 
-        submitting.set(true);
-        error.set(None);
+        submit_state.set(MutationState::pending());
 
         let auth = auth.clone();
         let navigate = navigate.clone();
@@ -78,13 +76,13 @@ pub(super) fn LoginPage() -> impl IntoView {
                 Ok(user) => {
                     auth.user.set(Some(user));
                     auth.loading.set(false);
+                    submit_state.set(MutationState::success());
                     navigate("/", Default::default());
                 }
                 Err(message) => {
-                    error.set(Some(message));
+                    submit_state.set(MutationState::error(message));
                 }
             }
-            submitting.set(false);
         });
     };
 
@@ -110,7 +108,10 @@ pub(super) fn LoginPage() -> impl IntoView {
                             class="g-text-input"
                             type="text"
                             prop:value=move || login.get()
-                            on:input=move |event| login.set(event_target_value(&event))
+                            on:input=move |event| {
+                                submit_state.set(MutationState::idle());
+                                login.set(event_target_value(&event));
+                            }
                             autocomplete="username"
                             required=true
                         />
@@ -123,7 +124,10 @@ pub(super) fn LoginPage() -> impl IntoView {
                             class="g-text-input"
                             type="password"
                             prop:value=move || password.get()
-                            on:input=move |event| password.set(event_target_value(&event))
+                            on:input=move |event| {
+                                submit_state.set(MutationState::idle());
+                                password.set(event_target_value(&event));
+                            }
                             autocomplete="current-password"
                             required=true
                         />
@@ -131,14 +135,22 @@ pub(super) fn LoginPage() -> impl IntoView {
                         <button
                             class="g-button-action"
                             type="submit"
-                            prop:disabled=move || submitting.get()
+                            prop:disabled=move || submit_state.get().is_pending()
                         >
-                            {move || if submitting.get() { "Signing in..." } else { "Sign In" }}
+                            {move || {
+                                if submit_state.get().is_pending() {
+                                    "Signing in..."
+                                } else {
+                                    "Sign In"
+                                }
+                            }}
                         </button>
 
                         {move || {
-                            error
+                            submit_state
                                 .get()
+                                .as_error()
+                                .cloned()
                                 .map(|message| {
                                     view! {
                                         <p class=format!(

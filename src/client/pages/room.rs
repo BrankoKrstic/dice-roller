@@ -23,6 +23,7 @@ use crate::{
         },
         context::page_title::{NOT_FOUND_PAGE_TITLE, ROOMS_PAGE_TITLE, use_page_title_context},
         utils::{
+            async_state::{LoadState, MutationState},
             roll_feed::DiceRollFeed,
             rooms::{
                 add_room_roll_request, allow_member_request, get_room_access_request,
@@ -41,12 +42,7 @@ use crate::{
 
 stylance::import_style!(style, "room.module.scss");
 
-#[derive(Debug, Clone, PartialEq)]
-enum RoomAccessState {
-    Loading,
-    Ready(RoomViewerState),
-    Error(String),
-}
+type RoomAccessState = LoadState<RoomViewerState, String>;
 
 #[cfg(feature = "hydrate")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,9 +54,9 @@ enum RoomSubscriptionTarget {
 
 fn page_title_for_access_state(access_state: RoomAccessState) -> String {
     match access_state {
-        RoomAccessState::Loading => ROOMS_PAGE_TITLE.to_string(),
-        RoomAccessState::Ready(viewer_state) => viewer_state.room.name,
-        RoomAccessState::Error(_) => NOT_FOUND_PAGE_TITLE.to_string(),
+        LoadState::Idle | LoadState::Loading => ROOMS_PAGE_TITLE.to_string(),
+        LoadState::Ready(viewer_state) => viewer_state.room.name,
+        LoadState::Error(_) => NOT_FOUND_PAGE_TITLE.to_string(),
     }
 }
 
@@ -89,7 +85,7 @@ struct RoomAccessController {
 impl RoomAccessController {
     fn new() -> Self {
         Self {
-            access_state: RwSignal::new(RoomAccessState::Loading),
+            access_state: RwSignal::new(LoadState::idle()),
             current_room_id: RwSignal::new(None),
         }
     }
@@ -135,7 +131,7 @@ impl RoomLiveState {
 
 #[derive(Clone)]
 struct RoomMemberState {
-    action_error: RwSignal<Option<String>>,
+    action_state: RwSignal<MutationState<String>>,
     action_busy_user_id: RwSignal<Option<i64>>,
     kick_dialog_member: RwSignal<Option<RoomMemberSummary>>,
 }
@@ -143,14 +139,14 @@ struct RoomMemberState {
 impl RoomMemberState {
     fn new() -> Self {
         Self {
-            action_error: RwSignal::new(None),
+            action_state: RwSignal::new(MutationState::idle()),
             action_busy_user_id: RwSignal::new(None),
             kick_dialog_member: RwSignal::new(None),
         }
     }
 
     fn reset(&self) {
-        self.action_error.set(None);
+        self.action_state.set(MutationState::idle());
         self.action_busy_user_id.set(None);
         self.kick_dialog_member.set(None);
     }
@@ -165,30 +161,41 @@ impl RoomMemberState {
                 status: member.status,
             });
 
+        self.action_state.set(MutationState::idle());
         self.kick_dialog_member.set(selected_member);
     }
 
     fn cancel_kick(&self) {
         self.kick_dialog_member.set(None);
     }
+
+    fn action_error_signal(&self) -> Signal<Option<String>> {
+        let members = self.clone();
+        Signal::derive(move || members.action_state.get().as_error().cloned())
+    }
 }
 
 #[derive(Clone)]
 struct RoomRollState {
     editor: RollEditorController,
-    roll_error: RwSignal<Option<String>>,
+    submit_state: RwSignal<MutationState<String>>,
 }
 
 impl RoomRollState {
     fn new() -> Self {
         Self {
             editor: RollEditorController::new(),
-            roll_error: RwSignal::new(None),
+            submit_state: RwSignal::new(MutationState::idle()),
         }
     }
 
     fn reset(&self) {
-        self.roll_error.set(None);
+        self.submit_state.set(MutationState::idle());
+    }
+
+    fn error_signal(&self) -> Signal<Option<String>> {
+        let rolls = self.clone();
+        Signal::derive(move || rolls.submit_state.get().as_error().cloned())
     }
 }
 
@@ -212,6 +219,7 @@ impl RoomPageState {
 
     fn reset_for_room_change(&self) {
         self.access.current_room_id.set(None);
+        self.access.access_state.set(LoadState::idle());
         self.live.reset();
         self.members.reset();
         self.rolls.reset();
@@ -292,6 +300,8 @@ fn RoomEditorPane(
     rolls: RoomRollState,
     #[prop(into)] on_roll: Callback<String>,
 ) -> impl IntoView {
+    let roll_error = rolls.error_signal();
+
     view! {
         <section class=format!(
             "{} {}",
@@ -316,8 +326,7 @@ fn RoomEditorPane(
                                     .map(|message| view! { <FeedbackMessage message /> })
                             }}
                             {move || {
-                                rolls
-                                    .roll_error
+                                roll_error
                                     .get()
                                     .map(|message| view! { <FeedbackMessage message /> })
                             }} <div class=style::room_inline_editor>
@@ -344,6 +353,8 @@ fn RoomSidebar(
     members: RoomMemberState,
     actions: RoomPageActions,
 ) -> impl IntoView {
+    let action_error = members.action_error_signal();
+
     view! {
         <aside class=style::room_rail>
             <section class=format!("g-panel g-panel-strong {}", style::room_header)>
@@ -383,7 +394,7 @@ fn RoomSidebar(
                 connected=live.stream_connected
                 can_manage_members=viewer.can_manage_members
                 busy_user_id=members.action_busy_user_id
-                action_error=members.action_error
+                action_error=action_error
                 on_allow=actions.on_allow_member
                 on_request_kick=actions.on_request_kick
             />
@@ -485,7 +496,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                     </div>
 
                     {move || match access_state.access_state.get() {
-                        RoomAccessState::Loading => {
+                        LoadState::Idle | LoadState::Loading => {
                             view! {
                                 <RoomStateCard
                                     label="Room access"
@@ -496,7 +507,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                             }
                                 .into_any()
                         }
-                        RoomAccessState::Error(message) => {
+                        LoadState::Error(message) => {
                             view! {
                                 <RoomStateCard
                                     label="Room lookup"
@@ -506,7 +517,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                             }
                                 .into_any()
                         }
-                        RoomAccessState::Ready(viewer) => {
+                        LoadState::Ready(viewer) => {
                             match viewer.viewer_status {
                                 RoomViewerStatus::Pending => {
                                     view! {
@@ -546,7 +557,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
             <Show when=move || {
                 matches!(
                     composer_state.access.access_state.get(),
-                    RoomAccessState::Ready(
+                    LoadState::Ready(
                         RoomViewerState {
                             viewer_status: RoomViewerStatus::Creator | RoomViewerStatus::Joined,
                             ..
@@ -558,7 +569,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                     controller=composer_state.rolls.editor.clone()
                     expression_input_id="room-mobile-expression-input".to_string()
                     on_roll=composer_actions.on_roll.clone()
-                    error=move || composer_state.rolls.roll_error.get()
+                    error=move || composer_state.rolls.submit_state.get().as_error().cloned()
                     dialog_title="Edit room roll".to_string()
                     dialog_summary="Update the current room expression or load a preset, then confirm to return to the feed."
                         .to_string()
@@ -601,20 +612,21 @@ pub fn RoomPage() -> impl IntoView {
                 state
                     .access
                     .access_state
-                    .set(RoomAccessState::Error("Room not found.".to_string()));
+                    .set(LoadState::error("Room not found.".to_string()));
                 return;
             }
 
             let Ok(room_id) = trimmed_room_id.parse::<i64>() else {
-                state.access.access_state.set(RoomAccessState::Error(
-                    "Room IDs use digits only.".to_string(),
-                ));
+                state
+                    .access
+                    .access_state
+                    .set(LoadState::error("Room IDs use digits only.".to_string()));
                 return;
             };
 
             let room_id = RoomId(room_id);
             state.access.current_room_id.set(Some(room_id));
-            state.access.access_state.set(RoomAccessState::Loading);
+            state.access.access_state.set(LoadState::loading());
 
             let state = state.clone();
             spawn_local(async move {
@@ -624,12 +636,9 @@ pub fn RoomPage() -> impl IntoView {
                         state
                             .access
                             .access_state
-                            .set(RoomAccessState::Ready(viewer_state));
+                            .set(LoadState::ready(viewer_state));
                     }
-                    Err(message) => state
-                        .access
-                        .access_state
-                        .set(RoomAccessState::Error(message)),
+                    Err(message) => state.access.access_state.set(LoadState::error(message)),
                 }
             });
         });
@@ -646,7 +655,7 @@ pub fn RoomPage() -> impl IntoView {
                 state.access.current_room_id.get(),
                 state.access.access_state.get(),
             ) {
-                (Some(room_id), RoomAccessState::Ready(viewer_state)) => {
+                (Some(room_id), LoadState::Ready(viewer_state)) => {
                     match viewer_state.viewer_status {
                         RoomViewerStatus::Creator | RoomViewerStatus::Joined => {
                             RoomSubscriptionTarget::Stream(room_id)
@@ -690,7 +699,7 @@ pub fn RoomPage() -> impl IntoView {
                                     state.live.stream_connected.set(true);
 
                                     state.access.access_state.update(|access_state| {
-                                        if let RoomAccessState::Ready(viewer_state) = access_state {
+                                        if let LoadState::Ready(viewer_state) = access_state {
                                             viewer_state.room = snapshot.room.clone();
                                             viewer_state.can_manage_members =
                                                 snapshot.can_manage_members;
@@ -719,7 +728,7 @@ pub fn RoomPage() -> impl IntoView {
                                     state.live.next_before_id.set(None);
 
                                     if let Some(room) = state.live.room.get_untracked() {
-                                        state.access.access_state.set(RoomAccessState::Ready(
+                                        state.access.access_state.set(LoadState::ready(
                                             RoomViewerState {
                                                 room,
                                                 viewer_status: RoomViewerStatus::Kicked,
@@ -727,10 +736,7 @@ pub fn RoomPage() -> impl IntoView {
                                             },
                                         ));
                                     } else {
-                                        state
-                                            .access
-                                            .access_state
-                                            .set(RoomAccessState::Error(reason));
+                                        state.access.access_state.set(LoadState::error(reason));
                                     }
                                 }
                             }
@@ -770,7 +776,7 @@ pub fn RoomPage() -> impl IntoView {
                                         state
                                             .access
                                             .access_state
-                                            .set(RoomAccessState::Ready(viewer_state));
+                                            .set(LoadState::ready(viewer_state));
                                         state.live.stream_error.set(None);
                                     }
                                     Err(message) => state.live.stream_error.set(Some(message)),
@@ -801,12 +807,14 @@ pub fn RoomPage() -> impl IntoView {
                 return;
             };
 
-            state.rolls.roll_error.set(None);
+            state.rolls.submit_state.set(MutationState::pending());
             let state = state.clone();
             spawn_local(async move {
                 if let Err(message) = add_room_roll_request(room_id.into_inner(), &expression).await
                 {
-                    state.rolls.roll_error.set(Some(message));
+                    state.rolls.submit_state.set(MutationState::error(message));
+                } else {
+                    state.rolls.submit_state.set(MutationState::success());
                 }
             });
         })
@@ -853,7 +861,7 @@ pub fn RoomPage() -> impl IntoView {
             };
             let user_id_value = user_id.into_inner();
 
-            state.members.action_error.set(None);
+            state.members.action_state.set(MutationState::pending());
             state.members.action_busy_user_id.set(Some(user_id_value));
 
             let members = state.members.clone();
@@ -861,7 +869,9 @@ pub fn RoomPage() -> impl IntoView {
                 if let Err(message) =
                     allow_member_request(room_id.into_inner(), user_id_value).await
                 {
-                    members.action_error.set(Some(message));
+                    members.action_state.set(MutationState::error(message));
+                } else {
+                    members.action_state.set(MutationState::success());
                 }
                 members.action_busy_user_id.set(None);
             });
@@ -895,14 +905,15 @@ pub fn RoomPage() -> impl IntoView {
             };
 
             let user_id = member.user_id.into_inner();
-            state.members.action_error.set(None);
+            state.members.action_state.set(MutationState::pending());
             state.members.action_busy_user_id.set(Some(user_id));
 
             let members = state.members.clone();
             spawn_local(async move {
                 if let Err(message) = kick_member_request(room_id.into_inner(), user_id).await {
-                    members.action_error.set(Some(message));
+                    members.action_state.set(MutationState::error(message));
                 } else {
+                    members.action_state.set(MutationState::success());
                     members.cancel_kick();
                 }
                 members.action_busy_user_id.set(None);

@@ -6,6 +6,7 @@ use crate::{
     client::{
         components::dialog::Dialog,
         context::page_title::use_static_page_title,
+        utils::async_state::{LoadState, MutationState},
         utils::rooms::{
             MAX_ACTIVE_CREATED_ROOMS, archive_room_request, join_room_request,
             latest_roll_activity_line, leave_room_request, list_joined_rooms_request,
@@ -18,13 +19,6 @@ use crate::{
 stylance::import_style!(style, "rooms.module.scss");
 
 #[derive(Debug, Clone, PartialEq)]
-enum JoinedRoomsState {
-    Loading,
-    Loaded(Vec<JoinedRoomSummary>),
-    Error(String),
-}
-
-#[derive(Debug, Clone, PartialEq)]
 enum RoomsActionDialog {
     Leave(JoinedRoomSummary),
     Archive(JoinedRoomSummary),
@@ -33,10 +27,9 @@ enum RoomsActionDialog {
 #[derive(Clone)]
 struct RoomsBoardState {
     join_input: RwSignal<String>,
-    join_error: RwSignal<Option<String>>,
-    joining: RwSignal<bool>,
-    rooms_state: RwSignal<JoinedRoomsState>,
-    action_error: RwSignal<Option<String>>,
+    join_state: RwSignal<MutationState<String>>,
+    rooms_state: RwSignal<LoadState<Vec<JoinedRoomSummary>, String>>,
+    action_state: RwSignal<MutationState<String>>,
     action_busy_room_id: RwSignal<Option<i64>>,
     action_dialog: RwSignal<Option<RoomsActionDialog>>,
 }
@@ -45,28 +38,37 @@ impl RoomsBoardState {
     fn new() -> Self {
         Self {
             join_input: RwSignal::new(String::new()),
-            join_error: RwSignal::new(None),
-            joining: RwSignal::new(false),
-            rooms_state: RwSignal::new(JoinedRoomsState::Loading),
-            action_error: RwSignal::new(None),
+            join_state: RwSignal::new(MutationState::idle()),
+            rooms_state: RwSignal::new(LoadState::idle()),
+            action_state: RwSignal::new(MutationState::idle()),
             action_busy_room_id: RwSignal::new(None),
             action_dialog: RwSignal::new(None),
         }
     }
 
     fn request_leave(&self, room: JoinedRoomSummary) {
-        self.action_error.set(None);
+        self.action_state.set(MutationState::idle());
         self.action_dialog.set(Some(RoomsActionDialog::Leave(room)));
     }
 
     fn request_archive(&self, room: JoinedRoomSummary) {
-        self.action_error.set(None);
+        self.action_state.set(MutationState::idle());
         self.action_dialog
             .set(Some(RoomsActionDialog::Archive(room)));
     }
 
     fn cancel_action(&self) {
         self.action_dialog.set(None);
+    }
+
+    fn join_error_signal(&self) -> Signal<Option<String>> {
+        let board = self.clone();
+        Signal::derive(move || board.join_state.get().as_error().cloned())
+    }
+
+    fn action_error_signal(&self) -> Signal<Option<String>> {
+        let board = self.clone();
+        Signal::derive(move || board.action_state.get().as_error().cloned())
     }
 }
 
@@ -82,15 +84,15 @@ fn active_created_room_count(rooms: &[JoinedRoomSummary]) -> usize {
     rooms.iter().filter(|room| room.can_manage_members).count()
 }
 
-fn create_room_limit_reached(rooms_state: &JoinedRoomsState) -> bool {
+fn create_room_limit_reached(rooms_state: &LoadState<Vec<JoinedRoomSummary>, String>) -> bool {
     matches!(
         rooms_state,
-        JoinedRoomsState::Loaded(rooms)
+        LoadState::Ready(rooms)
             if active_created_room_count(rooms) >= MAX_ACTIVE_CREATED_ROOMS
     )
 }
 
-fn create_room_helper_copy(rooms_state: &JoinedRoomsState) -> String {
+fn create_room_helper_copy(rooms_state: &LoadState<Vec<JoinedRoomSummary>, String>) -> String {
     if create_room_limit_reached(rooms_state) {
         format!(
             "You can create up to {MAX_ACTIVE_CREATED_ROOMS} active rooms. Archive one first to make space.",
@@ -167,7 +169,9 @@ fn EmptyState(title: &'static str, copy: String) -> impl IntoView {
 }
 
 #[component]
-fn CreateRoomCard(#[prop(into)] rooms_state: Signal<JoinedRoomsState>) -> impl IntoView {
+fn CreateRoomCard(
+    #[prop(into)] rooms_state: Signal<LoadState<Vec<JoinedRoomSummary>, String>>,
+) -> impl IntoView {
     let create_disabled = Signal::derive(move || create_room_limit_reached(&rooms_state.get()));
     let helper_copy = Signal::derive(move || create_room_helper_copy(&rooms_state.get()));
 
@@ -207,6 +211,8 @@ fn CreateRoomCard(#[prop(into)] rooms_state: Signal<JoinedRoomsState>) -> impl I
 
 #[component]
 fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
+    let join_error = board.join_error_signal();
+
     view! {
         <article class=style::launch_card>
             <p class="g-section-label">"Join a table"</p>
@@ -223,7 +229,7 @@ fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
                     placeholder="42"
                     prop:value=move || board.join_input.get()
                     on:input=move |event| {
-                        board.join_error.set(None);
+                        board.join_state.set(MutationState::idle());
                         board.join_input.set(event_target_value(&event));
                     }
                 />
@@ -232,16 +238,21 @@ fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
                         id="rooms-join-submit"
                         class="g-button-action"
                         type="submit"
-                        disabled=move || board.joining.get()
+                        disabled=move || board.join_state.get().is_pending()
                     >
-                        {move || if board.joining.get() { "Joining..." } else { "Join room" }}
+                        {move || {
+                            if board.join_state.get().is_pending() {
+                                "Joining..."
+                            } else {
+                                "Join room"
+                            }
+                        }}
                     </button>
                 </div>
             </div>
             <p class=style::join_helper>"Pending users wait there until admitted."</p>
             {move || {
-                board
-                    .join_error
+                join_error
                     .get()
                     .map(|message| view! { <p class=style::join_feedback>{message}</p> })
             }}
@@ -309,7 +320,9 @@ fn JoinedRoomCard(
                         <button
                             class="g-button-ghost"
                             type="button"
-                            prop:disabled=move || leave_board.action_busy_room_id.get() == Some(room_id)
+                            prop:disabled=move || {
+                                leave_board.action_busy_room_id.get() == Some(room_id)
+                            }
                             on:click={
                                 let request_leave = leave_actions.request_leave.clone();
                                 let room = room.clone();
@@ -334,6 +347,7 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
     let dialog_actions = actions.clone();
     let cancel_actions = actions.clone();
     let confirm_actions = actions.clone();
+    let action_error = board.action_error_signal();
 
     view! {
         <section class="g-page g-page-shell">
@@ -360,14 +374,13 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
                 </div>
 
                 {move || {
-                    card_board
-                        .action_error
+                    action_error
                         .get()
                         .map(|message| view! { <p class=style::join_feedback>{message}</p> })
                 }}
 
                 {move || match rooms_board.rooms_state.get() {
-                    JoinedRoomsState::Loading => {
+                    LoadState::Idle | LoadState::Loading => {
                         view! {
                             <EmptyState
                                 title="Loading joined rooms..."
@@ -376,11 +389,11 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
                         }
                             .into_any()
                     }
-                    JoinedRoomsState::Error(message) => {
+                    LoadState::Error(message) => {
                         view! { <EmptyState title="Could not load joined rooms." copy=message /> }
                             .into_any()
                     }
-                    JoinedRoomsState::Loaded(rooms) => {
+                    LoadState::Ready(rooms) => {
                         if rooms.is_empty() {
                             view! {
                                 <EmptyState
@@ -465,11 +478,11 @@ pub fn RoomsPage() -> impl IntoView {
     let refresh_rooms = {
         let board = board.clone();
         Callback::new(move |_| {
-            board.rooms_state.set(JoinedRoomsState::Loading);
+            board.rooms_state.set(LoadState::loading());
             spawn_local(async move {
                 match list_joined_rooms_request().await {
-                    Ok(rooms) => board.rooms_state.set(JoinedRoomsState::Loaded(rooms)),
-                    Err(message) => board.rooms_state.set(JoinedRoomsState::Error(message)),
+                    Ok(rooms) => board.rooms_state.set(LoadState::ready(rooms)),
+                    Err(message) => board.rooms_state.set(LoadState::error(message)),
                 }
             });
         })
@@ -490,36 +503,38 @@ pub fn RoomsPage() -> impl IntoView {
         let board = board.clone();
         move |event: SubmitEvent| {
             event.prevent_default();
-            if board.joining.get_untracked() {
+            if board.join_state.get_untracked().is_pending() {
                 return;
             }
 
             let room_id = match parse_room_id_input(&board.join_input.get_untracked()) {
                 Ok(room_id) => room_id,
                 Err(message) => {
-                    board.join_error.set(Some(message));
+                    board.join_state.set(MutationState::error(message));
                     return;
                 }
             };
 
-            board.join_error.set(None);
-            board.joining.set(true);
+            board.join_state.set(MutationState::pending());
 
             let navigate = navigate.clone();
             let board = board.clone();
             spawn_local(async move {
                 match join_room_request(room_id).await {
-                    Ok(_) => navigate(&room_route(room_id), Default::default()),
+                    Ok(_) => {
+                        board.join_state.set(MutationState::success());
+                        navigate(&room_route(room_id), Default::default())
+                    }
                     Err(message)
                         if message.contains("membership is already joined")
                             || message.contains("membership is already pending")
                             || message.contains("membership is pending approval") =>
                     {
+                        board.join_state.set(MutationState::success());
                         navigate(&room_route(room_id), Default::default());
                     }
-                    Err(message) => board.join_error.set(Some(message)),
+                    Err(message) => board.join_state.set(MutationState::error(message)),
                 }
-                board.joining.set(false);
             });
         }
     };
@@ -547,7 +562,7 @@ pub fn RoomsPage() -> impl IntoView {
 
                 let room_id = dialog.room().room.id.into_inner();
 
-                board.action_error.set(None);
+                board.action_state.set(MutationState::pending());
                 board.action_busy_room_id.set(Some(room_id));
                 let board = board.clone();
                 let refresh_rooms = refresh_rooms.clone();
@@ -565,9 +580,10 @@ pub fn RoomsPage() -> impl IntoView {
                     match result {
                         Ok(()) => {
                             board.action_dialog.set(None);
+                            board.action_state.set(MutationState::success());
                             refresh_rooms.run(());
                         }
-                        Err(message) => board.action_error.set(Some(message)),
+                        Err(message) => board.action_state.set(MutationState::error(message)),
                     }
 
                     board.action_busy_room_id.set(None);

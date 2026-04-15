@@ -2,7 +2,10 @@ use leptos::{prelude::*, task::spawn_local};
 use web_sys::SubmitEvent;
 
 use crate::{
-    client::utils::rooms::{add_room_member_request, validate_username_input},
+    client::utils::{
+        async_state::MutationState,
+        rooms::{add_room_member_request, validate_username_input},
+    },
     shared::data::room::RoomId,
 };
 
@@ -11,32 +14,32 @@ stylance::import_style!(style, "add_room_member.module.scss");
 #[component]
 pub fn AddRoomMember(room_id: RoomId) -> impl IntoView {
     let username = RwSignal::new(String::new());
-    let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+    let submit_state = RwSignal::new(MutationState::idle());
 
     let on_submit = move |event: SubmitEvent| {
         event.prevent_default();
-        if submitting.get_untracked() {
+        if submit_state.get_untracked().is_pending() {
             return;
         }
 
         let username_value = match validate_username_input(&username.get_untracked()) {
             Ok(username_value) => username_value,
             Err(message) => {
-                error.set(Some(message));
+                submit_state.set(MutationState::error(message));
                 return;
             }
         };
 
-        error.set(None);
-        submitting.set(true);
+        submit_state.set(MutationState::pending());
 
         spawn_local(async move {
             match add_room_member_request(room_id.into_inner(), &username_value).await {
-                Ok(_) => username.set(String::new()),
-                Err(message) => error.set(Some(message)),
+                Ok(_) => {
+                    username.set(String::new());
+                    submit_state.set(MutationState::success());
+                }
+                Err(message) => submit_state.set(MutationState::error(message)),
             }
-            submitting.set(false);
         });
     };
 
@@ -62,13 +65,15 @@ pub fn AddRoomMember(room_id: RoomId) -> impl IntoView {
                     placeholder="tablemate"
                     prop:value=move || username.get()
                     on:input=move |event| {
-                        error.set(None);
+                        submit_state.set(MutationState::idle());
                         username.set(event_target_value(&event));
                     }
                 />
                 {move || {
-                    error
+                    submit_state
                         .get()
+                        .as_error()
+                        .cloned()
                         .map(|message| {
                             view! { <p class=style::add_member_feedback>{message}</p> }
                         })
@@ -76,9 +81,17 @@ pub fn AddRoomMember(room_id: RoomId) -> impl IntoView {
                 <button
                     class="g-button-action"
                     type="submit"
-                    prop:disabled=move || submitting.get() || username.get().trim().is_empty()
+                    prop:disabled=move || {
+                        submit_state.get().is_pending() || username.get().trim().is_empty()
+                    }
                 >
-                    {move || { if submitting.get() { "Adding..." } else { "Add member" } }}
+                    {move || {
+                        if submit_state.get().is_pending() {
+                            "Adding..."
+                        } else {
+                            "Add member"
+                        }
+                    }}
                 </button>
             </form>
         </section>

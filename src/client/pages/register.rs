@@ -8,6 +8,7 @@ use crate::{
         context::{auth::use_auth_context, page_title::use_static_page_title},
         utils::{
             api::parse_error_response,
+            async_state::MutationState,
             rooms::{MAX_USERNAME_LENGTH, validate_username_input},
             url::base_url,
         },
@@ -54,8 +55,7 @@ pub(super) fn RegisterPage() -> impl IntoView {
     let username = RwSignal::new(String::new());
     let email = RwSignal::new(String::new());
     let password = RwSignal::new(String::new());
-    let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+    let submit_state = RwSignal::new(MutationState::idle());
 
     let redirect_home = navigate.clone();
     Effect::new(move |_| {
@@ -68,23 +68,22 @@ pub(super) fn RegisterPage() -> impl IntoView {
 
     let on_submit = move |event: SubmitEvent| {
         event.prevent_default();
-        if submitting.get_untracked() {
+        if submit_state.get_untracked().is_pending() {
             return;
         }
 
-        submitting.set(true);
-        error.set(None);
+        submit_state.set(MutationState::pending());
 
         let username_value = match validate_username_input(&username.get_untracked()) {
             Ok(username) if username.len() >= 2 => username,
             Ok(_) => {
-                submitting.set(false);
-                error.set(Some("User names need at least 2 characters.".to_string()));
+                submit_state.set(MutationState::error(
+                    "User names need at least 2 characters.".to_string(),
+                ));
                 return;
             }
             Err(message) => {
-                submitting.set(false);
-                error.set(Some(message));
+                submit_state.set(MutationState::error(message));
                 return;
             }
         };
@@ -103,13 +102,13 @@ pub(super) fn RegisterPage() -> impl IntoView {
                 Ok(user) => {
                     auth.user.set(Some(user));
                     auth.loading.set(false);
+                    submit_state.set(MutationState::success());
                     navigate("/", Default::default());
                 }
                 Err(message) => {
-                    error.set(Some(message));
+                    submit_state.set(MutationState::error(message));
                 }
             }
-            submitting.set(false);
         });
     };
 
@@ -137,7 +136,7 @@ pub(super) fn RegisterPage() -> impl IntoView {
                             maxlength=MAX_USERNAME_LENGTH
                             prop:value=move || username.get()
                             on:input=move |event| {
-                                error.set(None);
+                                submit_state.set(MutationState::idle());
                                 username.set(event_target_value(&event));
                             }
                             autocomplete="username"
@@ -152,7 +151,10 @@ pub(super) fn RegisterPage() -> impl IntoView {
                             class="g-text-input"
                             type="email"
                             prop:value=move || email.get()
-                            on:input=move |event| email.set(event_target_value(&event))
+                            on:input=move |event| {
+                                submit_state.set(MutationState::idle());
+                                email.set(event_target_value(&event));
+                            }
                             autocomplete="email"
                             required=true
                         />
@@ -165,7 +167,10 @@ pub(super) fn RegisterPage() -> impl IntoView {
                             class="g-text-input"
                             type="password"
                             prop:value=move || password.get()
-                            on:input=move |event| password.set(event_target_value(&event))
+                            on:input=move |event| {
+                                submit_state.set(MutationState::idle());
+                                password.set(event_target_value(&event));
+                            }
                             autocomplete="new-password"
                             required=true
                         />
@@ -173,14 +178,22 @@ pub(super) fn RegisterPage() -> impl IntoView {
                         <button
                             class="g-button-action"
                             type="submit"
-                            prop:disabled=move || submitting.get()
+                            prop:disabled=move || submit_state.get().is_pending()
                         >
-                            {move || if submitting.get() { "Creating account..." } else { "Register" }}
+                            {move || {
+                                if submit_state.get().is_pending() {
+                                    "Creating account..."
+                                } else {
+                                    "Register"
+                                }
+                            }}
                         </button>
 
                         {move || {
-                            error
+                            submit_state
                                 .get()
+                                .as_error()
+                                .cloned()
                                 .map(|message| {
                                     view! {
                                         <p class=format!(

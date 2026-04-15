@@ -5,6 +5,7 @@ use crate::client::components::{
     preset_editor::PresetEditor,
     roll_editor::{RollEditorController, RollEditorPanel},
 };
+use crate::client::utils::async_state::MutationState;
 
 stylance::import_style!(style, "bottom_roll_composer.module.scss");
 
@@ -13,7 +14,7 @@ pub fn BottomRollComposer(
     controller: RollEditorController,
     expression_input_id: String,
     #[prop(into)] on_roll: Callback<String>,
-    #[prop(into)] error: Signal<Option<String>>,
+    #[prop(into)] submit_state: Signal<MutationState<String>>,
     dialog_title: String,
     dialog_summary: String,
 ) -> impl IntoView {
@@ -23,11 +24,14 @@ pub fn BottomRollComposer(
 
     view! {
         <div class=style::mobile_composer_shell>
-            <Show when=move || error.get().is_some()>
-                <p class=style::mobile_composer_feedback>
-                    {move || error.get().unwrap_or_default()}
-                </p>
-            </Show>
+            {move || match submit_state.get() {
+                MutationState::Error(message) => {
+                    view! { <p class=style::mobile_composer_feedback>{message}</p> }.into_any()
+                }
+                MutationState::Idle | MutationState::Pending | MutationState::Success => {
+                    ().into_any()
+                }
+            }}
 
             <div class=style::mobile_composer_bar>
                 <button
@@ -43,11 +47,18 @@ pub fn BottomRollComposer(
                 <button
                     class="g-button-action"
                     type="button"
+                    prop:disabled=move || matches!(submit_state.get(), MutationState::Pending)
                     on:click=move |_| {
                         controller.submit_roll(on_roll);
                     }
                 >
-                    "Roll"
+                    {move || {
+                        if matches!(submit_state.get(), MutationState::Pending) {
+                            "Rolling..."
+                        } else {
+                            "Roll"
+                        }
+                    }}
                 </button>
             </div>
         </div>

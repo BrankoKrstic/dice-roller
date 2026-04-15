@@ -1,8 +1,11 @@
 use leptos::prelude::*;
 
-use crate::shared::data::{
-    room::{RoomMembershipStatus, RoomRosterMember},
-    user::UserId,
+use crate::{
+    client::utils::async_state::MutationState,
+    shared::data::{
+        room::{RoomMembershipStatus, RoomRosterMember},
+        user::UserId,
+    },
 };
 
 stylance::import_style!(style, "active_user_feed.module.scss");
@@ -13,7 +16,7 @@ pub fn ActiveUserFeed(
     #[prop(into)] connected: Signal<bool>,
     can_manage_members: bool,
     #[prop(into)] busy_user_id: Signal<Option<i64>>,
-    #[prop(into)] action_error: Signal<Option<String>>,
+    #[prop(into)] action_state: Signal<MutationState<String>>,
     #[prop(into)] on_allow: Callback<UserId>,
     #[prop(into)] on_request_kick: Callback<UserId>,
 ) -> impl IntoView {
@@ -34,9 +37,12 @@ pub fn ActiveUserFeed(
             </div>
 
             {move || {
-                action_error
-                    .get()
-                    .map(|message| view! { <p class=style::presence_feedback>{message}</p> })
+                match action_state.get() {
+                    MutationState::Error(message) => {
+                        Some(view! { <p class=style::presence_feedback>{message}</p> })
+                    }
+                    MutationState::Idle | MutationState::Pending | MutationState::Success => None,
+                }
             }}
 
             {move || {

@@ -168,11 +168,6 @@ impl RoomMemberState {
     fn cancel_kick(&self) {
         self.kick_dialog_member.set(None);
     }
-
-    fn action_error_signal(&self) -> Signal<Option<String>> {
-        let members = self.clone();
-        Signal::derive(move || members.action_state.get().as_error().cloned())
-    }
 }
 
 #[derive(Clone)]
@@ -191,11 +186,6 @@ impl RoomRollState {
 
     fn reset(&self) {
         self.submit_state.set(MutationState::idle());
-    }
-
-    fn error_signal(&self) -> Signal<Option<String>> {
-        let rolls = self.clone();
-        Signal::derive(move || rolls.submit_state.get().as_error().cloned())
     }
 }
 
@@ -300,8 +290,6 @@ fn RoomEditorPane(
     rolls: RoomRollState,
     #[prop(into)] on_roll: Callback<String>,
 ) -> impl IntoView {
-    let roll_error = rolls.error_signal();
-
     view! {
         <section class=format!(
             "{} {}",
@@ -326,9 +314,14 @@ fn RoomEditorPane(
                                     .map(|message| view! { <FeedbackMessage message /> })
                             }}
                             {move || {
-                                roll_error
-                                    .get()
-                                    .map(|message| view! { <FeedbackMessage message /> })
+                                match rolls.submit_state.get() {
+                                    MutationState::Error(message) => {
+                                        Some(view! { <FeedbackMessage message /> })
+                                    }
+                                    MutationState::Idle
+                                    | MutationState::Pending
+                                    | MutationState::Success => None,
+                                }
                             }} <div class=style::room_inline_editor>
                                 <RollEditor
                                     controller=rolls.editor
@@ -353,8 +346,6 @@ fn RoomSidebar(
     members: RoomMemberState,
     actions: RoomPageActions,
 ) -> impl IntoView {
-    let action_error = members.action_error_signal();
-
     view! {
         <aside class=style::room_rail>
             <section class=format!("g-panel g-panel-strong {}", style::room_header)>
@@ -394,7 +385,7 @@ fn RoomSidebar(
                 connected=live.stream_connected
                 can_manage_members=viewer.can_manage_members
                 busy_user_id=members.action_busy_user_id
-                action_error=action_error
+                action_state=members.action_state
                 on_allow=actions.on_allow_member
                 on_request_kick=actions.on_request_kick
             />
@@ -569,7 +560,7 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                     controller=composer_state.rolls.editor.clone()
                     expression_input_id="room-mobile-expression-input".to_string()
                     on_roll=composer_actions.on_roll.clone()
-                    error=move || composer_state.rolls.submit_state.get().as_error().cloned()
+                    submit_state=composer_state.rolls.submit_state
                     dialog_title="Edit room roll".to_string()
                     dialog_summary="Update the current room expression or load a preset, then confirm to return to the feed."
                         .to_string()

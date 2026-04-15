@@ -60,26 +60,28 @@ fn create_room_page_content(
                             }
                         />
                         {move || {
-                            submit_state
-                                .get()
-                                .as_error()
-                                .cloned()
-                                .map(|message| view! { <p class=style::form_error>{message}</p> })
+                            match submit_state.get() {
+                                MutationState::Error(message) => {
+                                    Some(view! { <p class=style::form_error>{message}</p> })
+                                }
+                                MutationState::Idle
+                                | MutationState::Pending
+                                | MutationState::Success => None,
+                            }
                         }}
                         <button
                             class="g-button-action"
                             type="submit"
                             prop:disabled=move || {
-                                submit_state.get().is_pending()
+                                matches!(submit_state.get(), MutationState::Pending)
                                     || room_name.get().trim().is_empty()
                             }
                         >
-                            {move || {
-                                if submit_state.get().is_pending() {
-                                    "Creating..."
-                                } else {
-                                    "Create room"
-                                }
+                            {move || match submit_state.get() {
+                                MutationState::Pending => "Creating...",
+                                MutationState::Idle
+                                | MutationState::Success
+                                | MutationState::Error(_) => "Create room",
                             }}
                         </button>
                     </form>

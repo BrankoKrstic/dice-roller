@@ -30,10 +30,6 @@ fn current_user_id(auth: &AuthContext) -> Option<i64> {
     auth.user.get_untracked().map(|user| user.id.into_inner())
 }
 
-fn save_disabled(presets_len: usize, saving: bool) -> bool {
-    saving || presets_len >= MAX_PRESETS
-}
-
 #[derive(Clone)]
 struct PresetEditorState {
     presets_state: RwSignal<LoadState<Vec<Preset>, String>>,
@@ -88,21 +84,6 @@ impl PresetEditorState {
         }
     }
 
-    fn loading_error_signal(&self) -> Signal<Option<String>> {
-        let state = self.clone();
-        Signal::derive(move || state.presets_state.get().as_error().cloned())
-    }
-
-    fn save_error_signal(&self) -> Signal<Option<String>> {
-        let state = self.clone();
-        Signal::derive(move || state.save_state.get().as_error().cloned())
-    }
-
-    fn archive_error_signal(&self) -> Signal<Option<String>> {
-        let state = self.clone();
-        Signal::derive(move || state.archive_state.get().as_error().cloned())
-    }
-
     fn preset_count_signal(&self) -> Signal<usize> {
         let state = self.clone();
         Signal::derive(move || state.preset_count())
@@ -116,13 +97,6 @@ impl PresetEditorState {
     fn delete_dialog_open_signal(&self) -> Signal<bool> {
         let state = self.clone();
         Signal::derive(move || matches!(state.dialog.get(), Some(PendingDialog::Delete(_))))
-    }
-
-    fn save_disabled_signal(&self) -> Signal<bool> {
-        let state = self.clone();
-        Signal::derive(move || {
-            save_disabled(state.preset_count(), state.save_state.get().is_pending())
-        })
     }
 
     fn selected_delete_preset_signal(&self) -> Signal<Option<Preset>> {
@@ -163,13 +137,48 @@ impl PresetEditorState {
     }
 }
 
-fn save_cta_copy(saving: bool, preset_count: usize) -> &'static str {
-    if saving {
-        "Saving..."
-    } else if preset_count >= MAX_PRESETS {
-        "Preset limit reached"
-    } else {
-        "Save as Preset"
+fn save_cta_copy(save_state: &MutationState<String>, preset_count: usize) -> &'static str {
+    match save_state {
+        MutationState::Pending => "Saving...",
+        MutationState::Idle | MutationState::Success | MutationState::Error(_)
+            if preset_count >= MAX_PRESETS =>
+        {
+            "Preset limit reached"
+        }
+        MutationState::Idle | MutationState::Success | MutationState::Error(_) => "Save as Preset",
+    }
+}
+
+fn save_cta_disabled(save_state: &MutationState<String>, preset_count: usize) -> bool {
+    match save_state {
+        MutationState::Pending => true,
+        MutationState::Idle | MutationState::Success | MutationState::Error(_) => {
+            preset_count >= MAX_PRESETS
+        }
+    }
+}
+
+fn archive_cta_copy(archive_state: &MutationState<String>) -> &'static str {
+    match archive_state {
+        MutationState::Pending => "Deleting...",
+        MutationState::Idle | MutationState::Success | MutationState::Error(_) => "Delete preset",
+    }
+}
+
+fn archive_cta_disabled(archive_state: &MutationState<String>) -> bool {
+    matches!(archive_state, MutationState::Pending)
+}
+
+fn save_dialog_submit_disabled(
+    save_state: &MutationState<String>,
+    pending_name: &str,
+    preset_count: usize,
+) -> bool {
+    match save_state {
+        MutationState::Pending => true,
+        MutationState::Idle | MutationState::Success | MutationState::Error(_) => {
+            pending_name.trim().is_empty() || preset_count >= MAX_PRESETS
+        }
     }
 }
 
@@ -234,7 +243,6 @@ fn SavePresetDialog(
 ) -> impl IntoView {
     let preset_count = state.preset_count_signal();
     let input_state = state.clone();
-    let error_signal = state.save_error_signal();
     let disable_state = state.clone();
     let label_state = state.clone();
 
@@ -267,9 +275,12 @@ fn SavePresetDialog(
                 <code class=style::dialog_expression_code>{move || expression.get()}</code>
             </div>
             {move || {
-                error_signal
-                    .get()
-                    .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
+                match state.save_state.get() {
+                    MutationState::Error(message) => {
+                        Some(view! { <p class=style::dialog_feedback>{message}</p> })
+                    }
+                    MutationState::Idle | MutationState::Pending | MutationState::Success => None,
+                }
             }}
             <div class=style::dialog_actions>
                 <button class="g-button-ghost" type="button" on:click=move |_| on_close.run(())>
@@ -279,19 +290,15 @@ fn SavePresetDialog(
                     class="g-button-action"
                     type="button"
                     prop:disabled=move || {
-                        disable_state.save_state.get().is_pending()
-                            || disable_state.pending_name.get().trim().is_empty()
-                            || preset_count.get() >= MAX_PRESETS
+                        save_dialog_submit_disabled(
+                            &disable_state.save_state.get(),
+                            &disable_state.pending_name.get(),
+                            preset_count.get(),
+                        )
                     }
                     on:click=move |_| on_submit.run(())
                 >
-                    {move || {
-                        if label_state.save_state.get().is_pending() {
-                            "Saving..."
-                        } else {
-                            "Save preset"
-                        }
-                    }}
+                    {move || save_cta_copy(&label_state.save_state.get(), preset_count.get())}
                 </button>
             </div>
         </Dialog>
@@ -305,7 +312,6 @@ fn DeletePresetDialog(
     #[prop(into)] on_confirm: Callback<()>,
 ) -> impl IntoView {
     let selected_delete_preset = state.selected_delete_preset_signal();
-    let error_signal = state.archive_error_signal();
     let disable_state = state.clone();
     let label_state = state.clone();
 
@@ -321,9 +327,12 @@ fn DeletePresetDialog(
                 {move || delete_dialog_copy(selected_delete_preset.get())}
             </p>
             {move || {
-                error_signal
-                    .get()
-                    .map(|message| view! { <p class=style::dialog_feedback>{message}</p> })
+                match state.archive_state.get() {
+                    MutationState::Error(message) => {
+                        Some(view! { <p class=style::dialog_feedback>{message}</p> })
+                    }
+                    MutationState::Idle | MutationState::Pending | MutationState::Success => None,
+                }
             }}
             <div class=style::dialog_actions>
                 <button class="g-button-ghost" type="button" on:click=move |_| on_close.run(())>
@@ -332,16 +341,13 @@ fn DeletePresetDialog(
                 <button
                     class=format!("g-button-utility {}", style::dialog_danger)
                     type="button"
-                    prop:disabled=move || disable_state.archiving_id.get().is_some()
+                    prop:disabled=move || {
+                        disable_state.archiving_id.get().is_some()
+                            || archive_cta_disabled(&disable_state.archive_state.get())
+                    }
                     on:click=move |_| on_confirm.run(())
                 >
-                    {move || {
-                        if label_state.archiving_id.get().is_some() {
-                            "Deleting..."
-                        } else {
-                            "Delete preset"
-                        }
-                    }}
+                    {move || archive_cta_copy(&label_state.archive_state.get())}
                 </button>
             </div>
         </Dialog>
@@ -466,7 +472,7 @@ pub fn PresetEditor(
         let state = state.clone();
         Callback::new(move |_| {
             if state.save_state.get_untracked().is_pending()
-                || save_disabled(state.preset_count(), false)
+                || save_cta_disabled(&state.save_state.get_untracked(), state.preset_count())
             {
                 return;
             }
@@ -561,8 +567,6 @@ pub fn PresetEditor(
     };
 
     let preset_count = state.preset_count_signal();
-    let save_cta_disabled = state.save_disabled_signal();
-    let load_error = state.loading_error_signal();
 
     let auth_for_view = auth.clone();
     let view_state = state.clone();
@@ -600,11 +604,12 @@ pub fn PresetEditor(
                         </div>
 
                         {move || {
-                            load_error
-                                .get()
-                                .map(|message| {
-                                    view! { <p class=style::preset_feedback>{message}</p> }
-                                })
+                            match view_state.presets_state.get() {
+                                LoadState::Error(message) => {
+                                    Some(view! { <p class=style::preset_feedback>{message}</p> })
+                                }
+                                LoadState::Idle | LoadState::Loading | LoadState::Ready(_) => None,
+                            }
                         }}
 
                         <div class=style::preset_rail>
@@ -644,7 +649,8 @@ pub fn PresetEditor(
                                     LoadState::Ready(items) => {
                                         let card_state = presets_state.clone();
                                         let on_select = on_select.clone();
-                                        items.into_iter()
+                                        items
+                                            .into_iter()
                                             .map(move |preset| {
                                                 let state = card_state.clone();
                                                 let on_select = on_select.clone();
@@ -667,12 +673,17 @@ pub fn PresetEditor(
                             <button
                                 class="g-button-action"
                                 type="button"
-                                prop:disabled=move || save_cta_disabled.get()
+                                prop:disabled=move || {
+                                    save_cta_disabled(
+                                        &footer_state.save_state.get(),
+                                        preset_count.get(),
+                                    )
+                                }
                                 on:click=move |_| open_save_dialog.run(())
                             >
                                 {move || {
                                     save_cta_copy(
-                                        footer_state.save_state.get().is_pending(),
+                                        &footer_state.save_state.get(),
                                         preset_count.get(),
                                     )
                                 }}

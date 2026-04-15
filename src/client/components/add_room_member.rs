@@ -70,27 +70,28 @@ pub fn AddRoomMember(room_id: RoomId) -> impl IntoView {
                     }
                 />
                 {move || {
-                    submit_state
-                        .get()
-                        .as_error()
-                        .cloned()
-                        .map(|message| {
-                            view! { <p class=style::add_member_feedback>{message}</p> }
-                        })
+                    match submit_state.get() {
+                        MutationState::Error(message) => {
+                            Some(view! { <p class=style::add_member_feedback>{message}</p> })
+                        }
+                        MutationState::Idle | MutationState::Pending | MutationState::Success => {
+                            None
+                        }
+                    }
                 }}
                 <button
                     class="g-button-action"
                     type="submit"
                     prop:disabled=move || {
-                        submit_state.get().is_pending() || username.get().trim().is_empty()
+                        matches!(submit_state.get(), MutationState::Pending)
+                            || username.get().trim().is_empty()
                     }
                 >
-                    {move || {
-                        if submit_state.get().is_pending() {
-                            "Adding..."
-                        } else {
-                            "Add member"
-                        }
+                    {move || match submit_state.get() {
+                        MutationState::Pending => "Adding...",
+                        MutationState::Idle
+                        | MutationState::Success
+                        | MutationState::Error(_) => "Add member",
                     }}
                 </button>
             </form>

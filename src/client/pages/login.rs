@@ -135,31 +135,33 @@ pub(super) fn LoginPage() -> impl IntoView {
                         <button
                             class="g-button-action"
                             type="submit"
-                            prop:disabled=move || submit_state.get().is_pending()
+                            prop:disabled=move || {
+                                matches!(submit_state.get(), MutationState::Pending)
+                            }
                         >
-                            {move || {
-                                if submit_state.get().is_pending() {
-                                    "Signing in..."
-                                } else {
-                                    "Sign In"
-                                }
+                            {move || match submit_state.get() {
+                                MutationState::Pending => "Signing in...",
+                                MutationState::Idle
+                                | MutationState::Success
+                                | MutationState::Error(_) => "Sign In",
                             }}
                         </button>
 
                         {move || {
-                            submit_state
-                                .get()
-                                .as_error()
-                                .cloned()
-                                .map(|message| {
-                                    view! {
+                            match submit_state.get() {
+                                MutationState::Error(message) => {
+                                    Some(view! {
                                         <p class=format!(
                                             "{} {}",
                                             style::auth_feedback,
                                             style::auth_feedback_error,
                                         )>{message}</p>
-                                    }
-                                })
+                                    })
+                                }
+                                MutationState::Idle
+                                | MutationState::Pending
+                                | MutationState::Success => None,
+                            }
                         }}
                     </form>
 

@@ -11,7 +11,10 @@ use crate::{
             roll_feed::RollFeed,
         },
         context::{auth::use_auth_context, page_title::use_static_page_title},
-        utils::roll_feed::{DiceRoll, DiceRollFeed},
+        utils::{
+            async_state::MutationState,
+            roll_feed::{DiceRoll, DiceRollFeed},
+        },
     },
     dsl::parse_and_roll,
     shared::utils::time::format_timestamp,
@@ -43,7 +46,7 @@ pub(crate) fn HomePage() -> impl IntoView {
 
     let auth = use_auth_context();
     let feed = RwSignal::new(DiceRollFeed::new());
-    let roll_error = RwSignal::new(None::<String>);
+    let submit_state = RwSignal::new(MutationState::idle());
     let editor = RollEditorController::new();
 
     let load_older_rolls = || {};
@@ -52,12 +55,12 @@ pub(crate) fn HomePage() -> impl IntoView {
         let result = match parse_and_roll(&expr) {
             Ok(result) => result,
             Err(error) => {
-                roll_error.set(Some(error.to_string()));
+                submit_state.set(MutationState::error(error.to_string()));
                 return;
             }
         };
 
-        roll_error.set(None);
+        submit_state.set(MutationState::success());
         feed.write().add_roll(build_local_roll(expr, result));
     };
     view! {
@@ -71,11 +74,19 @@ pub(crate) fn HomePage() -> impl IntoView {
                             expression_input_id="home-editor-expression-input".to_string()
                         />
                     </div>
-                    <Show when=move || roll_error.get().is_some()>
-                        <p class=format!("g-result-hint {}", style::home_feedback)>
-                            {move || roll_error.get().unwrap_or_default()}
-                        </p>
-                    </Show>
+                    {move || match submit_state.get() {
+                        MutationState::Error(message) => {
+                            view! {
+                                <p class=format!("g-result-hint {}", style::home_feedback)>
+                                    {message}
+                                </p>
+                            }
+                                .into_any()
+                        }
+                        MutationState::Idle | MutationState::Pending | MutationState::Success => {
+                            ().into_any()
+                        }
+                    }}
                 </section>
 
                 <aside class=style::home_rail>
@@ -107,7 +118,7 @@ pub(crate) fn HomePage() -> impl IntoView {
                 controller=editor
                 expression_input_id="home-mobile-expression-input".to_string()
                 on_roll=process_roll
-                error=move || roll_error.get()
+                submit_state=submit_state
                 dialog_title="Edit roll".to_string()
                 dialog_summary="Adjust the current expression or load a preset, then confirm to return to the ledger."
                     .to_string()

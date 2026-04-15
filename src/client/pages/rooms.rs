@@ -60,16 +60,6 @@ impl RoomsBoardState {
     fn cancel_action(&self) {
         self.action_dialog.set(None);
     }
-
-    fn join_error_signal(&self) -> Signal<Option<String>> {
-        let board = self.clone();
-        Signal::derive(move || board.join_state.get().as_error().cloned())
-    }
-
-    fn action_error_signal(&self) -> Signal<Option<String>> {
-        let board = self.clone();
-        Signal::derive(move || board.action_state.get().as_error().cloned())
-    }
 }
 
 #[derive(Clone)]
@@ -211,8 +201,6 @@ fn CreateRoomCard(
 
 #[component]
 fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
-    let join_error = board.join_error_signal();
-
     view! {
         <article class=style::launch_card>
             <p class="g-section-label">"Join a table"</p>
@@ -238,23 +226,25 @@ fn JoinRoomCard(board: RoomsBoardState) -> impl IntoView {
                         id="rooms-join-submit"
                         class="g-button-action"
                         type="submit"
-                        disabled=move || board.join_state.get().is_pending()
+                        disabled=move || matches!(board.join_state.get(), MutationState::Pending)
                     >
-                        {move || {
-                            if board.join_state.get().is_pending() {
-                                "Joining..."
-                            } else {
-                                "Join room"
-                            }
+                        {move || match board.join_state.get() {
+                            MutationState::Pending => "Joining...",
+                            MutationState::Idle
+                            | MutationState::Success
+                            | MutationState::Error(_) => "Join room",
                         }}
                     </button>
                 </div>
             </div>
             <p class=style::join_helper>"Pending users wait there until admitted."</p>
             {move || {
-                join_error
-                    .get()
-                    .map(|message| view! { <p class=style::join_feedback>{message}</p> })
+                match board.join_state.get() {
+                    MutationState::Error(message) => {
+                        Some(view! { <p class=style::join_feedback>{message}</p> })
+                    }
+                    MutationState::Idle | MutationState::Pending | MutationState::Success => None,
+                }
             }}
         </article>
     }
@@ -347,7 +337,6 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
     let dialog_actions = actions.clone();
     let cancel_actions = actions.clone();
     let confirm_actions = actions.clone();
-    let action_error = board.action_error_signal();
 
     view! {
         <section class="g-page g-page-shell">
@@ -374,9 +363,14 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
                 </div>
 
                 {move || {
-                    action_error
-                        .get()
-                        .map(|message| view! { <p class=style::join_feedback>{message}</p> })
+                    match board.action_state.get() {
+                        MutationState::Error(message) => {
+                            Some(view! { <p class=style::join_feedback>{message}</p> })
+                        }
+                        MutationState::Idle
+                        | MutationState::Pending
+                        | MutationState::Success => None,
+                    }
                 }}
 
                 {move || match rooms_board.rooms_state.get() {
@@ -452,14 +446,20 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
                     <button
                         class="g-button-action"
                         type="button"
+                        prop:disabled=move || {
+                            matches!(dialog_board.action_state.get(), MutationState::Pending)
+                        }
                         on:click=move |_| confirm_actions.confirm_action.run(())
                     >
-                        {move || {
-                            dialog_board
+                        {move || match dialog_board.action_state.get() {
+                            MutationState::Pending => "Working...",
+                            MutationState::Idle
+                            | MutationState::Success
+                            | MutationState::Error(_) => dialog_board
                                 .action_dialog
                                 .get()
                                 .map(|dialog| dialog.confirm_label())
-                                .unwrap_or("")
+                                .unwrap_or(""),
                         }}
                     </button>
                 </div>

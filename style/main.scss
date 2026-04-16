@@ -106,16 +106,7 @@ body.g-body-scroll-lock {
   min-height: 100dvh;
   color: var(--ink);
   background:
-    radial-gradient(
-      circle at top left,
-      var(--shell-glow-warm),
-      transparent 24rem
-    ),
-    radial-gradient(
-      circle at 82% 0%,
-      var(--shell-glow-cool),
-      transparent 26rem
-    ),
+
     linear-gradient(180deg, var(--paper-strong), var(--paper));
   overflow: hidden;
   transition:

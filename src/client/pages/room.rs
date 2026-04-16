@@ -77,6 +77,20 @@ fn stream_badge_copy(connected: bool) -> &'static str {
     }
 }
 
+fn room_page_uses_mobile_roll_composer_clearance(
+    access_state: RoomAccessState,
+    live_ready: bool,
+) -> bool {
+    live_ready
+        && matches!(
+            access_state,
+            LoadState::Ready(RoomViewerState {
+                viewer_status: RoomViewerStatus::Creator | RoomViewerStatus::Joined,
+                ..
+            })
+        )
+}
+
 #[derive(Clone)]
 struct RoomAccessController {
     access_state: RwSignal<RoomAccessState>,
@@ -477,7 +491,18 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
 
     view! {
         <>
-            <section class="g-page g-page-shell">
+            <section
+                class="g-page g-page-shell"
+                class=(
+                    "g-page-mobile-roll-composer-clearance",
+                    move || {
+                        room_page_uses_mobile_roll_composer_clearance(
+                            composer_state.access.access_state.get(),
+                            composer_state.live.live_ready.get(),
+                        )
+                    },
+                )
+            >
                 <section class=format!("g-panel g-panel-strong {}", style::room_shell)>
                     <div class=style::hide_on_mobile>
                         <div class="g-page-meta">
@@ -547,15 +572,10 @@ fn room_page_content(state: RoomPageState, actions: RoomPageActions) -> impl Int
                 <KickMemberDialog members=kick_members actions=kick_actions />
             </section>
             <Show when=move || {
-                matches!(
+                room_page_uses_mobile_roll_composer_clearance(
                     composer_state.access.access_state.get(),
-                    LoadState::Ready(
-                        RoomViewerState {
-                            viewer_status: RoomViewerStatus::Creator | RoomViewerStatus::Joined,
-                            ..
-                        },
-                    )
-                ) && composer_state.live.live_ready.get()
+                    composer_state.live.live_ready.get(),
+                )
             }>
                 <BottomRollComposer
                     controller=composer_state.rolls.editor.clone()
@@ -930,5 +950,69 @@ pub fn RoomPage() -> impl IntoView {
             />
             {room_page_content(state, actions)}
         </>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shared::data::user::UserId;
+
+    fn test_room_viewer_state(viewer_status: RoomViewerStatus) -> RoomViewerState {
+        RoomViewerState {
+            room: Room {
+                id: RoomId(42),
+                creator_id: UserId::new(7),
+                name: "Table".to_string(),
+                archived: false,
+                created_at: 0,
+                updated_at: 0,
+            },
+            viewer_status,
+            can_manage_members: matches!(viewer_status, RoomViewerStatus::Creator),
+        }
+    }
+
+    #[test]
+    fn enables_mobile_clearance_for_joined_rooms_once_live_ready() {
+        let access_state = LoadState::Ready(test_room_viewer_state(RoomViewerStatus::Joined));
+
+        assert!(room_page_uses_mobile_roll_composer_clearance(
+            access_state,
+            true,
+        ));
+    }
+
+    #[test]
+    fn disables_mobile_clearance_before_live_room_is_ready() {
+        let access_state = LoadState::Ready(test_room_viewer_state(RoomViewerStatus::Creator));
+
+        assert!(!room_page_uses_mobile_roll_composer_clearance(
+            access_state,
+            false,
+        ));
+    }
+
+    #[test]
+    fn disables_mobile_clearance_for_non_active_room_states() {
+        let pending_access = LoadState::Ready(test_room_viewer_state(RoomViewerStatus::Pending));
+        let kicked_access = LoadState::Ready(test_room_viewer_state(RoomViewerStatus::Kicked));
+
+        assert!(!room_page_uses_mobile_roll_composer_clearance(
+            pending_access,
+            true,
+        ));
+        assert!(!room_page_uses_mobile_roll_composer_clearance(
+            kicked_access,
+            true,
+        ));
+        assert!(!room_page_uses_mobile_roll_composer_clearance(
+            LoadState::Loading,
+            true,
+        ));
+        assert!(!room_page_uses_mobile_roll_composer_clearance(
+            LoadState::Error("missing".to_string()),
+            true,
+        ));
     }
 }

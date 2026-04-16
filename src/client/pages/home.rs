@@ -70,7 +70,10 @@ pub(crate) fn HomePage() -> impl IntoView {
                 name="description"
                 content="Roll dice, try expressions, and keep a local roll history."
             />
-            <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
+            <div class=format!(
+                "g-page g-page-shell g-page-shell-split g-page-mobile-roll-composer-clearance {}",
+                style::home_shell,
+            )>
                 <section class=style::home_column>
                     <div class=style::home_inline_editor>
                         <RollEditor

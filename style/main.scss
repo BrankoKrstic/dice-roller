@@ -44,6 +44,9 @@
   --motion-base: 260ms;
   --page-width: 1180px;
   --grid-gap: clamp(1rem, 2vw, 1.35rem);
+  --g-app-main-padding-bottom: 4rem;
+  --g-mobile-roll-composer-clearance:
+    calc(6rem + env(safe-area-inset-bottom, 0px));
 }
 
 [data-theme="dark"] {
@@ -177,7 +180,7 @@ textarea:focus-visible {
   position: relative;
   margin: 0 auto;
   width: min(var(--page-width), 100% - 2rem);
-  padding: clamp(1rem, 2vw, 1.5rem) 0 4rem;
+  padding: clamp(1rem, 2vw, 1.5rem) 0 var(--g-app-main-padding-bottom);
 }
 
 .g-app-shell {
@@ -385,6 +388,17 @@ textarea:focus-visible {
   .g-app-main {
     width: min(var(--page-width), 100% - 1rem);
     padding-top: 0.8rem;
+  }
+
+  .g-page-mobile-roll-composer-clearance {
+    padding-bottom:
+      max(
+        0px,
+        calc(
+          var(--g-mobile-roll-composer-clearance) -
+            var(--g-app-main-padding-bottom)
+        )
+      );
   }
 
   .g-app-wrapper::after {

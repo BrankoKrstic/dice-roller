@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_meta::Meta;
 
 use crate::client::{
     context::page_title::use_static_page_title,
@@ -35,34 +36,40 @@ pub fn ReferencePage() -> impl IntoView {
     use_static_page_title("Reference");
 
     view! {
-        <section class=format!("g-page g-page-shell {}", style::reference_layout)>
-            <div class=format!("g-panel g-panel-strong {}", style::reference_hero)>
-                <p class="g-section-label">"Expressions"</p>
-                <h1 class="g-section-title">"Expression Editor Reference"</h1>
-                <p class=style::reference_hero_summary>
-                    "Use Dice Bench when you want a quick draft. Use Expression Editor to take advantage of the full power of the dice roll notation."
-                </p>
-            </div>
+        <>
+            <Meta
+                name="description"
+                content="Learn the dice expression syntax with simple examples and notes."
+            />
+            <section class=format!("g-page g-page-shell {}", style::reference_layout)>
+                <div class=format!("g-panel g-panel-strong {}", style::reference_hero)>
+                    <p class="g-section-label">"Expressions"</p>
+                    <h1 class="g-section-title">"Expression Editor Reference"</h1>
+                    <p class=style::reference_hero_summary>
+                        "Use Dice Bench when you want a quick draft. Use Expression Editor to take advantage of the full power of the dice roll notation."
+                    </p>
+                </div>
 
-            {REFERENCE_SECTIONS
-                .iter()
-                .map(|section| {
-                    view! {
-                        <section class=format!("g-panel {}", style::reference_section)>
-                            <p class="g-section-label">{section.label}</p>
-                            <h2 class="g-section-title">{section.title}</h2>
-                            <p class="g-section-summary">{section.summary}</p>
-                            <div class=style::reference_entry_grid>
-                                {section
-                                    .entries
-                                    .iter()
-                                    .map(|entry| render_entry(entry))
-                                    .collect_view()}
-                            </div>
-                        </section>
-                    }
-                })
-                .collect_view()}
-        </section>
+                {REFERENCE_SECTIONS
+                    .iter()
+                    .map(|section| {
+                        view! {
+                            <section class=format!("g-panel {}", style::reference_section)>
+                                <p class="g-section-label">{section.label}</p>
+                                <h2 class="g-section-title">{section.title}</h2>
+                                <p class="g-section-summary">{section.summary}</p>
+                                <div class=style::reference_entry_grid>
+                                    {section
+                                        .entries
+                                        .iter()
+                                        .map(|entry| render_entry(entry))
+                                        .collect_view()}
+                                </div>
+                            </section>
+                        }
+                    })
+                    .collect_view()}
+            </section>
+        </>
     }
 }

@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_meta::Meta;
 
 use crate::{
     ChanceResult,
@@ -233,10 +234,15 @@ pub fn StatsPage() -> impl IntoView {
     let run_simulation = |_| {};
 
     view! {
-        <div class=format!("g-page g-page-shell g-page-shell-split {}", style::stats_shell)>
-            <section class=style::stats_column>
-                <section class=format!("g-panel g-panel-strong {}", style::stats_workbench)>
-                    <div class=style::stats_toolbar>
+        <>
+            <Meta
+                name="description"
+                content="Run quick dice simulations and compare hit chance and damage."
+            />
+            <div class=format!("g-page g-page-shell g-page-shell-split {}", style::stats_shell)>
+                <section class=style::stats_column>
+                    <section class=format!("g-panel g-panel-strong {}", style::stats_workbench)>
+                        <div class=style::stats_toolbar>
                         <div
                             class=format!("g-roll-editor-mode-switch {}", style::stats_mode_switch)
                             role="tablist"
@@ -356,20 +362,21 @@ pub fn StatsPage() -> impl IntoView {
                             }
                         }}
                     </button>
-                </section>
-            </section>
-
-            <aside class=style::stats_rail>
-                <section class="g-panel g-panel-strong">
-                    <p class="g-section-label">"Chance Ledger"</p>
-                    <h1 class="g-section-title">"Probability Mode"</h1>
-                    <p class="g-section-summary">
-                        "Draft the two rolls, set the target AC or DC, and run the simulation to see your chance to hit and damage output."
-                    </p>
+                    </section>
                 </section>
 
-                <StatsResultPanel simulation_state=simulation_state />
-            </aside>
-        </div>
+                <aside class=style::stats_rail>
+                    <section class="g-panel g-panel-strong">
+                        <p class="g-section-label">"Chance Ledger"</p>
+                        <h1 class="g-section-title">"Probability Mode"</h1>
+                        <p class="g-section-summary">
+                            "Draft the two rolls, set the target AC or DC, and run the simulation to see your chance to hit and damage output."
+                        </p>
+                    </section>
+
+                    <StatsResultPanel simulation_state=simulation_state />
+                </aside>
+            </div>
+        </>
     }
 }

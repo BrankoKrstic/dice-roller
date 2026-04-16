@@ -1,4 +1,5 @@
 use leptos::{prelude::*, task::spawn_local};
+use leptos_meta::Meta;
 use leptos_router::hooks::use_navigate;
 use web_sys::SubmitEvent;
 
@@ -339,7 +340,12 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
     let confirm_actions = actions.clone();
 
     view! {
-        <section class="g-page g-page-shell">
+        <>
+            <Meta
+                name="description"
+                content="Create a room, join a room, and manage your shared tables."
+            />
+            <section class="g-page g-page-shell">
             <section class=format!("g-panel g-panel-strong {}", style::launch_panel)>
                 <div class=style::launch_header>
                     <p class="g-section-label">"Rooms"</p>
@@ -464,7 +470,8 @@ fn rooms_page_content(board: RoomsBoardState, actions: RoomsBoardActions) -> imp
                     </button>
                 </div>
             </Dialog>
-        </section>
+            </section>
+        </>
     }
 }
 

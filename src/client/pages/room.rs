@@ -2,6 +2,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use leptos::{prelude::*, task::spawn_local};
+use leptos_meta::Meta;
 use leptos_router::hooks::use_params_map;
 
 #[cfg(feature = "hydrate")]
@@ -921,5 +922,13 @@ pub fn RoomPage() -> impl IntoView {
         on_confirm_kick,
     };
 
-    room_page_content(state, actions)
+    view! {
+        <>
+            <Meta
+                name="description"
+                content="Roll dice in a shared room with a live feed and member list."
+            />
+            {room_page_content(state, actions)}
+        </>
+    }
 }

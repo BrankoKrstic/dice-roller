@@ -1,4 +1,5 @@
 use leptos::{prelude::*, task::spawn_local};
+use leptos_meta::Meta;
 use leptos_router::hooks::use_navigate;
 use serde::Serialize;
 use web_sys::SubmitEvent;
@@ -113,15 +114,20 @@ pub(super) fn RegisterPage() -> impl IntoView {
     };
 
     view! {
-        <section class=format!("g-page g-page-shell {}", style::page_auth)>
-            <div class=style::auth_layout>
-                <header class="g-panel g-panel-strong">
-                    <p class="g-section-label">"New account"</p>
-                    <h1 class="g-section-title">"Open a table identity."</h1>
-                    <p class="g-section-summary">
-                        "Create an account so your name can stay attached to protected routes and shared session history."
-                    </p>
-                </header>
+        <>
+            <Meta
+                name="description"
+                content="Create an account to join rooms and keep your name on shared activity."
+            />
+            <section class=format!("g-page g-page-shell {}", style::page_auth)>
+                <div class=style::auth_layout>
+                    <header class="g-panel g-panel-strong">
+                        <p class="g-section-label">"New account"</p>
+                        <h1 class="g-section-title">"Open a table identity."</h1>
+                        <p class="g-section-summary">
+                            "Create an account so your name can stay attached to protected routes and shared session history."
+                        </p>
+                    </header>
 
                 <article class=style::auth_card>
                     <p class="g-section-label">"Register"</p>
@@ -214,13 +220,17 @@ pub(super) fn RegisterPage() -> impl IntoView {
                         <li>"You can jump straight back to the roller after registration."</li>
                     </ul>
 
-                    <p class=style::auth_switch>
-                        "Already have an account? " <a class=style::auth_switch_link href="/login">
-                            "Sign in"
-                        </a>
-                    </p>
-                </article>
-            </div>
-        </section>
+                        <p class=style::auth_switch>
+                            "Already have an account? " <a
+                                class=style::auth_switch_link
+                                href="/login"
+                            >
+                                "Sign in"
+                            </a>
+                        </p>
+                    </article>
+                </div>
+            </section>
+        </>
     }
 }

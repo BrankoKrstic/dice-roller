@@ -1,4 +1,5 @@
 use leptos::{prelude::*, task::spawn_local};
+use leptos_meta::Meta;
 use leptos_router::hooks::use_navigate;
 use serde::Serialize;
 use web_sys::SubmitEvent;
@@ -87,34 +88,39 @@ pub(super) fn LoginPage() -> impl IntoView {
     };
 
     view! {
-        <section class=format!("g-page g-page-shell {}", style::page_auth)>
-            <div class=style::auth_layout>
-                <header class="g-panel g-panel-strong">
-                    <p class="g-section-label">"Account access"</p>
-                    <h1 class="g-section-title">"Return to your table."</h1>
-                    <p class="g-section-summary">
-                        "Sign in for protected room routes and account-aware history."
-                    </p>
-                </header>
+        <>
+            <Meta
+                name="description"
+                content="Sign in to access your rooms and account features."
+            />
+            <section class=format!("g-page g-page-shell {}", style::page_auth)>
+                <div class=style::auth_layout>
+                    <header class="g-panel g-panel-strong">
+                        <p class="g-section-label">"Account access"</p>
+                        <h1 class="g-section-title">"Return to your table."</h1>
+                        <p class="g-section-summary">
+                            "Sign in for protected room routes and account-aware history."
+                        </p>
+                    </header>
 
-                <article class=style::auth_card>
-                    <p class="g-section-label">"Sign in"</p>
-                    <form class=style::auth_form on:submit=on_submit>
-                        <label class="g-field-label" for="login-input">
-                            "Email"
-                        </label>
-                        <input
-                            id="login-input"
-                            class="g-text-input"
-                            type="text"
-                            prop:value=move || login.get()
-                            on:input=move |event| {
-                                submit_state.set(MutationState::idle());
-                                login.set(event_target_value(&event));
-                            }
-                            autocomplete="username"
-                            required=true
-                        />
+                    <article class=style::auth_card>
+                        <p class="g-section-label">"Sign in"</p>
+                        <form class=style::auth_form on:submit=on_submit>
+                            <label class="g-field-label" for="login-input">
+                                "Email"
+                            </label>
+                            <input
+                                id="login-input"
+                                class="g-text-input"
+                                type="text"
+                                prop:value=move || login.get()
+                                on:input=move |event| {
+                                    submit_state.set(MutationState::idle());
+                                    login.set(event_target_value(&event));
+                                }
+                                autocomplete="username"
+                                required=true
+                            />
 
                         <label class="g-field-label" for="login-password-input">
                             "Password"
@@ -165,13 +171,17 @@ pub(super) fn LoginPage() -> impl IntoView {
                         }}
                     </form>
 
-                    <p class=style::auth_switch>
-                        "Need an account? " <a class=style::auth_switch_link href="/register">
-                            "Register"
-                        </a>
-                    </p>
-                </article>
-            </div>
-        </section>
+                        <p class=style::auth_switch>
+                            "Need an account? " <a
+                                class=style::auth_switch_link
+                                href="/register"
+                            >
+                                "Register"
+                            </a>
+                        </p>
+                    </article>
+                </div>
+            </section>
+        </>
     }
 }

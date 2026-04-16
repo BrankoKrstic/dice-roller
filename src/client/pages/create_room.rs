@@ -1,4 +1,5 @@
 use leptos::{prelude::*, task::spawn_local};
+use leptos_meta::Meta;
 use leptos_router::hooks::use_navigate;
 use web_sys::SubmitEvent;
 
@@ -18,12 +19,17 @@ fn create_room_page_content(
     on_submit: impl Fn(SubmitEvent) + 'static,
 ) -> impl IntoView {
     view! {
-        <section class=format!("g-page g-page-shell {}", style::create_room_page)>
-            <div class="g-page-meta">
-                <a class="g-button-utility" href="/rooms">
-                    "Back to rooms"
-                </a>
-            </div>
+        <>
+            <Meta
+                name="description"
+                content="Create a room and open a shared roll feed for your table."
+            />
+            <section class=format!("g-page g-page-shell {}", style::create_room_page)>
+                <div class="g-page-meta">
+                    <a class="g-button-utility" href="/rooms">
+                        "Back to rooms"
+                    </a>
+                </div>
 
             <div class=style::create_room_layout>
                 <section class=format!("g-panel g-panel-strong {}", style::hero_card)>
@@ -87,7 +93,8 @@ fn create_room_page_content(
                     </form>
                 </section>
             </div>
-        </section>
+            </section>
+        </>
     }
 }
 

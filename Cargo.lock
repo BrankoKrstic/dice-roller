@@ -889,6 +889,7 @@ dependencies = [
 name = "dice-roller"
 version = "0.1.0"
 dependencies = [
+ "any_spawner",
  "argon2",
  "axum 0.8.8",
  "axum-extra",

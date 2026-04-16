@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::Utc;
 use leptos::prelude::*;
+use leptos_meta::Meta;
 
 use crate::{
     client::{
@@ -65,6 +66,10 @@ pub(crate) fn HomePage() -> impl IntoView {
     };
     view! {
         <>
+            <Meta
+                name="description"
+                content="Roll dice, try expressions, and keep a local roll history."
+            />
             <div class=format!("g-page g-page-shell g-page-shell-split {}", style::home_shell)>
                 <section class=style::home_column>
                     <div class=style::home_inline_editor>
